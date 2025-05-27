@@ -9,7 +9,13 @@
 
 struct termios orig_termios;
 
+void editor_refresh_screen(void) {
+  write(STDIN_FILENO, "\x1b[2J", 4);
+  write(STDIN_FILENO, "\x1b[H", 3);
+}
+
 void die(const char *s) {
+  editor_refresh_screen();
   perror(s);
   exit(1);
 }
@@ -59,13 +65,10 @@ void editor_process_key_press(void) {
 
   switch (c) {
     case CTRL_KEY('q'):
+      editor_refresh_screen();
       exit(0);
       break;
   }
-}
-
-void editor_refresh_screen(void) {
-  write(STDIN_FILENO, "\x1b[2J", 4);
 }
 
 int main(void) {
