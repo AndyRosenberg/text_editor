@@ -44,21 +44,25 @@ void editor_clear_screen(void) {
   write(STDOUT_FILENO, "\x1b[H", 3);
 }
 
-void editor_draw_rows(void) {
+void editor_draw_rows(append_buffer *ab) {
   int y;
   for (y = 0; y < edconfig.screen_rows; y++) {
-    write(STDOUT_FILENO, "~", 1);
+    ab_append(ab, "~", 1);
     
     if (y < edconfig.screen_rows - 1) {
-      write(STDOUT_FILENO, "\r\n", 2);
+      ab_append(ab, "\r\n", 2);
     }
   }
 }
 
 void editor_refresh_screen(void) {
-  editor_clear_screen();
-  editor_draw_rows();
-  write(STDOUT_FILENO, "\x1b[H", 3);
+  append_buffer ab = APPEND_BUFFER_INIT;
+  ab_append(&ab, "\x1b[2J", 4);
+  ab_append(&ab, "\x1b[H", 3);
+  editor_draw_rows(&ab);
+  ab_append(&ab, "\x1b[H", 3);
+  write(STDOUT_FILENO, ab.buffer, ab.len);
+  ab_free(&ab);
 }
 
 void die(const char *s) {
