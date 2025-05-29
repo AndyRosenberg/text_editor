@@ -2,11 +2,18 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
 
 #define CTRL_KEY(k) ((k) & 0x1f)
+#define APPEND_BUFFER_INIT { NULL, 0 }
+
+typedef struct {
+  char *buffer;
+  int len;
+} append_buffer;
 
 typedef struct {
   int screen_rows;
@@ -15,6 +22,22 @@ typedef struct {
 } editor_cofig;
 
 editor_cofig edconfig;
+
+void ab_append(append_buffer *ab, const char *s, int len) {
+  char *new = realloc(ab->buffer, ab->len + len);
+
+  if (new == NULL) {
+    return;
+  }
+
+  memcpy(&new[ab->len], s, len);
+  ab->buffer = new;
+  ab->len += len;
+}
+
+void ab_free(append_buffer *ab) {
+  free(ab->buffer);
+}
 
 void editor_clear_screen(void) {
   write(STDOUT_FILENO, "\x1b[2J", 4);
