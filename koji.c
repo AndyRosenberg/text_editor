@@ -7,6 +7,7 @@
 #include <termios.h>
 #include <unistd.h>
 
+#define KOJI_VERSION "0.0.1"
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define APPEND_BUFFER_INIT { NULL, 0 }
 
@@ -47,8 +48,25 @@ void editor_clear_screen(void) {
 void editor_draw_rows(append_buffer *ab) {
   int y;
   for (y = 0; y < edconfig.screen_rows; y++) {
-    ab_append(ab, "~", 1);
-    
+    if (y == edconfig.screen_rows / 3) {
+      char welcome[80];
+
+      int welcome_length = snprintf(
+        welcome,
+        sizeof(welcome),
+        "Koji Editor -- Version %s",
+        KOJI_VERSION
+      );
+
+      if (welcome_length > edconfig.screen_columns) {
+        welcome_length = edconfig.screen_columns;
+      }
+    } else {
+      ab_append(ab, "~", 1);
+    }
+
+    ab_append(ab, "\x1b[K", 3);
+
     if (y < edconfig.screen_rows - 1) {
       ab_append(ab, "\r\n", 2);
     }
@@ -59,7 +77,6 @@ void editor_refresh_screen(void) {
   append_buffer ab = APPEND_BUFFER_INIT;
 
   ab_append(&ab, "\x1b[?25l", 6);
-  ab_append(&ab, "\x1b[2J", 4);
   ab_append(&ab, "\x1b[H", 3);
 
   editor_draw_rows(&ab);
