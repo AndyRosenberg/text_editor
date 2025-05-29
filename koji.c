@@ -61,6 +61,8 @@ void editor_draw_rows(append_buffer *ab) {
       if (welcome_length > edconfig.screen_columns) {
         welcome_length = edconfig.screen_columns;
       }
+
+      ab_append(ab, welcome, welcome_length);
     } else {
       ab_append(ab, "~", 1);
     }
