@@ -12,10 +12,10 @@
 #define APPEND_BUFFER_INIT { NULL, 0 }
 
 enum MOVEMENT_KEYS {
-  ARROW_LEFT = 'a',
-  ARROW_RIGHT = 'd',
-  ARROW_UP = 'w',
-  ARROW_DOWN = 's'
+  ARROW_LEFT = 1000,
+  ARROW_RIGHT = 1001,
+  ARROW_UP = 1002,
+  ARROW_DOWN = 1003
 };
 
 typedef struct {
@@ -202,7 +202,7 @@ int get_window_size(int *rows, int *cols) {
   }
 }
 
-char editor_read_key(void) {
+int editor_read_key(void) {
   int nread;
   char c;
 
@@ -242,7 +242,7 @@ char editor_read_key(void) {
   return c;
 }
 
-void editor_move_cursor(char key) {
+void editor_move_cursor(int key) {
   switch (key) {
     case ARROW_LEFT:
       edconfig.cursor_x--;
@@ -260,7 +260,7 @@ void editor_move_cursor(char key) {
 }
 
 void editor_process_key_press(void) {
-  char c = editor_read_key();
+  int c = editor_read_key();
 
   switch (c) {
     case CTRL_KEY('q'):
