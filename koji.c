@@ -62,6 +62,17 @@ void editor_draw_rows(append_buffer *ab) {
         welcome_length = edconfig.screen_columns;
       }
 
+      int padding = (edconfig.screen_columns - welcome_length) / 2;
+
+      if (padding) {
+        ab_append(ab, "~", 1);
+        padding--;
+      }
+
+      while (padding--) {
+        ab_append(ab, " ", 1);
+      }
+
       ab_append(ab, welcome, welcome_length);
     } else {
       ab_append(ab, "~", 1);
