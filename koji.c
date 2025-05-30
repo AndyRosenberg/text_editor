@@ -107,8 +107,6 @@ void editor_refresh_screen(void) {
   );
 
   ab_append(&ab, cursor_buffer, strlen(cursor_buffer));
-
-  ab_append(&ab, "\x1b[H", 3);
   ab_append(&ab, "\x1b[?25h", 6);
 
   write(STDOUT_FILENO, ab.buffer, ab.len);
@@ -210,6 +208,23 @@ char editor_read_key(void) {
   return c;
 }
 
+void editor_move_cursor(char key) {
+  switch (key) {
+    case 'a':
+      edconfig.cursor_x--;
+      break;
+    case 'd':
+      edconfig.cursor_x++;
+      break;
+    case 'w':
+      edconfig.cursor_y--;
+      break;
+    case 's':
+      edconfig.cursor_y++;
+      break;
+  }
+}
+
 void editor_process_key_press(void) {
   char c = editor_read_key();
 
@@ -217,6 +232,12 @@ void editor_process_key_press(void) {
     case CTRL_KEY('q'):
       editor_clear_screen();
       exit(0);
+      break;
+    case 'a':
+    case 'd':
+    case 'w':
+    case 's':
+      editor_move_cursor(c);
       break;
   }
 }
