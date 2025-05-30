@@ -11,6 +11,13 @@
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define APPEND_BUFFER_INIT { NULL, 0 }
 
+enum MOVEMENT_KEYS {
+  ARROW_LEFT = 'a',
+  ARROW_RIGHT = 'd',
+  ARROW_UP = 'w',
+  ARROW_DOWN = 's'
+};
+
 typedef struct {
   char *buffer;
   int len;
@@ -219,13 +226,13 @@ char editor_read_key(void) {
     if (escape_sequence[0] == '[') {
       switch (escape_sequence[1]) {
         case 'A': 
-          return 'w';
+          return ARROW_UP;
         case 'B':
-          return 's';
+          return ARROW_DOWN;
         case 'C':
-          return 'd';
+          return ARROW_RIGHT;
         case 'D':
-          return 'a';
+          return ARROW_LEFT;
       }
     }
 
@@ -237,16 +244,16 @@ char editor_read_key(void) {
 
 void editor_move_cursor(char key) {
   switch (key) {
-    case 'a':
+    case ARROW_LEFT:
       edconfig.cursor_x--;
       break;
-    case 'd':
+    case ARROW_RIGHT:
       edconfig.cursor_x++;
       break;
-    case 'w':
+    case ARROW_UP:
       edconfig.cursor_y--;
       break;
-    case 's':
+    case ARROW_DOWN:
       edconfig.cursor_y++;
       break;
   }
@@ -260,10 +267,10 @@ void editor_process_key_press(void) {
       editor_clear_screen();
       exit(0);
       break;
-    case 'a':
-    case 'd':
-    case 'w':
-    case 's':
+    case ARROW_LEFT:
+    case ARROW_RIGHT:
+    case ARROW_UP:
+    case ARROW_DOWN:
       editor_move_cursor(c);
       break;
   }
