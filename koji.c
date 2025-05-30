@@ -15,7 +15,9 @@ enum MOVEMENT_KEYS {
   ARROW_LEFT = 1000,
   ARROW_RIGHT = 1001,
   ARROW_UP = 1002,
-  ARROW_DOWN = 1003
+  ARROW_DOWN = 1003,
+  PAGE_UP = 1004,
+  PAGE_DOWN = 1005
 };
 
 typedef struct {
@@ -224,15 +226,30 @@ int editor_read_key(void) {
     }
 
     if (escape_sequence[0] == '[') {
-      switch (escape_sequence[1]) {
-        case 'A': 
-          return ARROW_UP;
-        case 'B':
-          return ARROW_DOWN;
-        case 'C':
-          return ARROW_RIGHT;
-        case 'D':
-          return ARROW_LEFT;
+      if (escape_sequence[1] >= '0' && escape_sequence[2 <= '9']) {
+        if (read(STDIN_FILENO, &escape_sequence[2], 1) != 1) {
+          return '\x1b';
+        }
+
+        if (escape_sequence[2] == '~') {
+          switch (escape_sequence[1]) {
+            case '5':
+              return PAGE_UP;
+            case '6':
+              return PAGE_DOWN;
+          }
+        }
+      } else {
+        switch (escape_sequence[1]) {
+          case 'A':
+            return ARROW_UP;
+          case 'B':
+            return ARROW_DOWN;
+          case 'C':
+            return ARROW_RIGHT;
+          case 'D':
+            return ARROW_LEFT;
+        }
       }
     }
 
@@ -279,6 +296,18 @@ void editor_process_key_press(void) {
       editor_clear_screen();
       exit(0);
       break;
+    case PAGE_UP:
+    case PAGE_DOWN:
+    {
+      int times = edconfig.screen_rows;
+      while (times--) {
+        if (c == PAGE_UP) {
+          editor_move_cursor(ARROW_UP);
+        } else if (c == PAGE_DOWN) {
+          editor_move_cursor(ARROW_DOWN);
+        }
+      }
+    }
     case ARROW_LEFT:
     case ARROW_RIGHT:
     case ARROW_UP:
