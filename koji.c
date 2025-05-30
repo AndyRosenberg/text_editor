@@ -245,16 +245,28 @@ int editor_read_key(void) {
 void editor_move_cursor(int key) {
   switch (key) {
     case ARROW_LEFT:
-      edconfig.cursor_x--;
+      if (edconfig.cursor_x != 0) {
+        edconfig.cursor_x--;
+      }
+
       break;
     case ARROW_RIGHT:
-      edconfig.cursor_x++;
+      if (edconfig.cursor_x != edconfig.screen_columns - 1) {
+        edconfig.cursor_x++;
+      }
+
       break;
     case ARROW_UP:
-      edconfig.cursor_y--;
+      if (edconfig.cursor_y != 0) {
+        edconfig.cursor_y--;
+      }
+
       break;
     case ARROW_DOWN:
-      edconfig.cursor_y++;
+      if (edconfig.cursor_y != edconfig.screen_rows - 1) {
+        edconfig.cursor_y++;
+      }
+
       break;
   }
 }
