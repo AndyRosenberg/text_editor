@@ -17,6 +17,8 @@ typedef struct {
 } append_buffer;
 
 typedef struct {
+  int cursor_x;
+  int cursor_y;
   int screen_rows;
   int screen_columns;
   struct termios orig_termios;
@@ -93,6 +95,18 @@ void editor_refresh_screen(void) {
   ab_append(&ab, "\x1b[H", 3);
 
   editor_draw_rows(&ab);
+
+  char cursor_buffer[32];
+
+  snprintf(
+    cursor_buffer,
+    sizeof(cursor_buffer),
+    "\x1b[%d;%dH",
+    edconfig.cursor_y + 1,
+    edconfig.cursor_x + 1
+  );
+
+  ab_append(&ab, cursor_buffer, strlen(cursor_buffer));
 
   ab_append(&ab, "\x1b[H", 3);
   ab_append(&ab, "\x1b[?25h", 6);
@@ -208,6 +222,9 @@ void editor_process_key_press(void) {
 }
 
 void init_editor(void) {
+  edconfig.cursor_x = 0;
+  edconfig.cursor_y = 0;
+
   if (get_window_size(&edconfig.screen_rows, &edconfig.screen_columns) == -1) {
     die("get_window_size");
   }
