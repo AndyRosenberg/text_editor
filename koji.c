@@ -205,6 +205,33 @@ char editor_read_key(void) {
     }
   }
 
+  if (c == '\x1b') {
+    char escape_sequence[3];
+
+    if (read(STDIN_FILENO, &escape_sequence[0], 1) != 1) {
+      return '\x1b';
+    }
+
+    if (read(STDIN_FILENO, &escape_sequence[1], 1) != 1) {
+      return '\x1b';
+    }
+
+    if (escape_sequence[0] == '[') {
+      switch (escape_sequence[1]) {
+        case 'A': 
+          return 'w';
+        case 'B':
+          return 's';
+        case 'C':
+          return 'd';
+        case 'D':
+          return 'a';
+      }
+    }
+
+    return '\x1b';
+  }
+
   return c;
 }
 
