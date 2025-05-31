@@ -70,40 +70,47 @@ void editor_clear_screen(void) {
 void editor_draw_rows(append_buffer *ab) {
   int y;
   for (y = 0; y < edconfig.screen_rows; y++) {
-    if (y == edconfig.screen_rows / 3) {
-      char welcome[80];
+    if (y >= edconfig.number_of_rows) {
+      if (y == edconfig.screen_rows / 3) {
+        char welcome[80];
 
-      int welcome_length = snprintf(
-        welcome,
-        sizeof(welcome),
-        "Koji Editor -- Version %s",
-        KOJI_VERSION
-      );
+        int welcome_length = snprintf(
+          welcome,
+          sizeof(welcome),
+          "Koji Editor -- Version %s",
+          KOJI_VERSION
+        );
 
-      if (welcome_length > edconfig.screen_columns) {
-        welcome_length = edconfig.screen_columns;
-      }
+        if (welcome_length > edconfig.screen_columns) {
+          welcome_length = edconfig.screen_columns;
+        }
 
-      int padding = (edconfig.screen_columns - welcome_length) / 2;
+        int padding = (edconfig.screen_columns - welcome_length) / 2;
 
-      if (padding) {
+        if (padding) {
+          ab_append(ab, "~", 1);
+          padding--;
+        }
+
+        while (padding--) {
+          ab_append(ab, " ", 1);
+        }
+
+        ab_append(ab, welcome, welcome_length);
+      } else {
         ab_append(ab, "~", 1);
-        padding--;
       }
 
-      while (padding--) {
-        ab_append(ab, " ", 1);
-      }
+      ab_append(ab, "\x1b[K", 3);
 
-      ab_append(ab, welcome, welcome_length);
+      if (y < edconfig.screen_rows - 1) {
+        ab_append(ab, "\r\n", 2);
+      }
     } else {
-      ab_append(ab, "~", 1);
-    }
-
-    ab_append(ab, "\x1b[K", 3);
-
-    if (y < edconfig.screen_rows - 1) {
-      ab_append(ab, "\r\n", 2);
+      int current_row_length = edconfig.current_row.size;
+      if (current_row_length > edconfig.screen_columns) {
+        ab_append(ab, edconfig.current_row.chars, current_row_length);
+      }
     }
   }
 }
