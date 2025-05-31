@@ -13,11 +13,14 @@
 
 enum MOVEMENT_KEYS {
   ARROW_LEFT = 1000,
-  ARROW_RIGHT = 1001,
-  ARROW_UP = 1002,
-  ARROW_DOWN = 1003,
-  PAGE_UP = 1004,
-  PAGE_DOWN = 1005
+  ARROW_RIGHT,
+  ARROW_UP,
+  ARROW_DOWN,
+  DEL_KEY,
+  HOME_KEY,
+  END_KEY,
+  PAGE_UP,
+  PAGE_DOWN
 };
 
 typedef struct {
@@ -226,17 +229,27 @@ int editor_read_key(void) {
     }
 
     if (escape_sequence[0] == '[') {
-      if (escape_sequence[1] >= '0' && escape_sequence[2 <= '9']) {
+      if (escape_sequence[1] >= '0' && escape_sequence[1] <= '9') {
         if (read(STDIN_FILENO, &escape_sequence[2], 1) != 1) {
           return '\x1b';
         }
 
         if (escape_sequence[2] == '~') {
           switch (escape_sequence[1]) {
+            case '1':
+              return HOME_KEY;
+            case '3':
+              return DEL_KEY;
+            case '4':
+              return END_KEY;
             case '5':
               return PAGE_UP;
             case '6':
               return PAGE_DOWN;
+            case '7':
+              return HOME_KEY;
+            case '8':
+              return END_KEY;
           }
         }
       } else {
@@ -249,7 +262,18 @@ int editor_read_key(void) {
             return ARROW_RIGHT;
           case 'D':
             return ARROW_LEFT;
+          case 'H':
+            return HOME_KEY;
+          case 'F':
+            return END_KEY;
         }
+      }
+    } else if (escape_sequence[0] == 'O') {
+      switch (escape_sequence[1]) {
+        case 'H':
+          return HOME_KEY;
+        case 'F':
+          return END_KEY;
       }
     }
 
@@ -296,18 +320,29 @@ void editor_process_key_press(void) {
       editor_clear_screen();
       exit(0);
       break;
+
+    case HOME_KEY:
+      edconfig.cursor_x = 0;
+      break;
+
+    case END_KEY:
+      edconfig.cursor_x = edconfig.screen_columns - 1;
+      break;
+
     case PAGE_UP:
     case PAGE_DOWN:
-    {
-      int times = edconfig.screen_rows;
-      while (times--) {
-        if (c == PAGE_UP) {
-          editor_move_cursor(ARROW_UP);
-        } else if (c == PAGE_DOWN) {
-          editor_move_cursor(ARROW_DOWN);
+      {
+        int times = edconfig.screen_rows;
+        while (times--) {
+          if (c == PAGE_UP) {
+            editor_move_cursor(ARROW_UP);
+          } else if (c == PAGE_DOWN) {
+            editor_move_cursor(ARROW_DOWN);
+          }
         }
       }
-    }
+      break;
+
     case ARROW_LEFT:
     case ARROW_RIGHT:
     case ARROW_UP:
