@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -29,10 +30,17 @@ typedef struct {
 } append_buffer;
 
 typedef struct {
+  int size;
+  char *chars;
+} editor_row;
+
+typedef struct {
   int cursor_x;
   int cursor_y;
   int screen_rows;
   int screen_columns;
+  int number_of_rows;
+  editor_row current_row;
   struct termios orig_termios;
 } editor_cofig;
 
@@ -100,6 +108,20 @@ void editor_draw_rows(append_buffer *ab) {
   }
 }
 
+void editor_open(void) {
+  char *line = "Hello, world!";
+  ssize_t line_length = 13;
+  edconfig.current_row.size = line_length;
+  edconfig.current_row.chars = malloc(line_length + 1);
+  memcpy(
+    edconfig.current_row.chars,
+    line,
+    line_length
+  );
+  edconfig.current_row.chars[line_length] = '\0';
+  edconfig.number_of_rows = 1;
+}
+
 void editor_refresh_screen(void) {
   append_buffer ab = APPEND_BUFFER_INIT;
 
@@ -159,32 +181,32 @@ void enable_raw_mode(void) {
 }
 
 int get_cursor_position(int *rows, int *cols) {
-  char buf[32];
+  char cursor_buffer[32];
   unsigned int i = 0;
 
   if (write(STDOUT_FILENO, "\x1b[6n", 4) != 4) {
     return -1;
   }
   
-  while (i < sizeof buf - 1) {
-    if (read(STDIN_FILENO, &buf[i], 1) != 1) {
+  while (i < sizeof cursor_buffer - 1) {
+    if (read(STDIN_FILENO, &cursor_buffer[i], 1) != 1) {
       break;
     }
     
-    if (buf[i] == 'R') {
+    if (cursor_buffer[i] == 'R') {
       break;
     }
     
     i++;
   }
   
-  buf[i] = '\0';
+  cursor_buffer[i] = '\0';
   
-  if (buf[0] != '\x1b' || buf[1] != '[') {
+  if (cursor_buffer[0] != '\x1b' || cursor_buffer[1] != '[') {
     return -1;
   }
   
-  if (sscanf(&buf[2], "%d;%d", rows, cols) != 2) {
+  if (sscanf(&cursor_buffer[2], "%d;%d", rows, cols) != 2) {
     return -1;
   }
   
@@ -192,17 +214,17 @@ int get_cursor_position(int *rows, int *cols) {
 }
 
 int get_window_size(int *rows, int *cols) {
-  struct winsize ws;
+  struct winsize window_size;
   
-  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &window_size) == -1 || window_size.ws_col == 0) {
     if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12) {
       return -1;
     }
 
     return get_cursor_position(rows, cols);
   } else {
-    *cols = ws.ws_col;
-    *rows = ws.ws_row;
+    *cols = window_size.ws_col;
+    *rows = window_size.ws_row;
     return 0;
   }
 }
@@ -355,6 +377,7 @@ void editor_process_key_press(void) {
 void init_editor(void) {
   edconfig.cursor_x = 0;
   edconfig.cursor_y = 0;
+  edconfig.number_of_rows = 0;
 
   if (get_window_size(&edconfig.screen_rows, &edconfig.screen_columns) == -1) {
     die("get_window_size");
@@ -364,6 +387,7 @@ void init_editor(void) {
 int main(void) {
   enable_raw_mode();
   init_editor();
+  editor_open();
 
   while (1) {
     editor_refresh_screen();
