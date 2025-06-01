@@ -38,6 +38,7 @@ typedef struct {
   int cursor_x;
   int cursor_y;
   int row_offset;
+  int column_offset;
   int screen_rows;
   int screen_columns;
   int number_of_rows;
@@ -112,13 +113,21 @@ void editor_draw_rows(append_buffer *ab) {
       }
     } else {
       // read file contents up to current row
-      int last_row_length = edconfig.current_rows[file_row].size;
+      int last_row_length = edconfig.current_rows[file_row].size - edconfig.column_offset;
+
+      if (last_row_length < 0) {
+        last_row_length = 0;
+      }
 
       if (last_row_length > edconfig.screen_columns) {
         last_row_length = edconfig.screen_columns;
       }
 
-      ab_append(ab, edconfig.current_rows[file_row].chars, last_row_length);
+      ab_append(
+        ab,
+        &edconfig.current_rows[file_row].chars[edconfig.column_offset],
+        last_row_length
+      );
     }
 
     // append newlines and clear other terminal contents
@@ -177,6 +186,14 @@ void editor_scroll(void) {
   if (edconfig.cursor_y >= edconfig.row_offset + edconfig.screen_rows) {
     edconfig.row_offset = edconfig.cursor_y - edconfig.screen_rows + 1;
   }
+
+  if (edconfig.cursor_x < edconfig.column_offset) {
+    edconfig.column_offset = edconfig.cursor_x;
+  }
+
+  if (edconfig.cursor_x >= edconfig.column_offset + edconfig.screen_columns) {
+    edconfig.column_offset = edconfig.cursor_x - edconfig.screen_columns + 1;
+  }
 }
 
 void editor_refresh_screen(void) {
@@ -195,8 +212,8 @@ void editor_refresh_screen(void) {
     cursor_buffer,
     sizeof(cursor_buffer),
     "\x1b[%d;%dH",
-    edconfig.cursor_y + 1,
-    edconfig.cursor_x + 1
+    (edconfig.cursor_y - edconfig.row_offset) + 1,
+    (edconfig.cursor_x - edconfig.column_offset + 1
   );
 
   ab_append(&ab, cursor_buffer, strlen(cursor_buffer));
@@ -367,9 +384,7 @@ void editor_move_cursor(int key) {
 
       break;
     case ARROW_RIGHT:
-      if (edconfig.cursor_x != edconfig.screen_columns - 1) {
-        edconfig.cursor_x++;
-      }
+      edconfig.cursor_x++;
 
       break;
     case ARROW_UP:
@@ -431,6 +446,7 @@ void init_editor(void) {
   edconfig.cursor_x = 0;
   edconfig.cursor_y = 0;
   edconfig.row_offset = 0;
+  edconfig.column_offset = 0;
   edconfig.number_of_rows = 0;
   edconfig.current_rows = NULL;
 
