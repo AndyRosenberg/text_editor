@@ -40,7 +40,7 @@ typedef struct {
   int screen_rows;
   int screen_columns;
   int number_of_rows;
-  editor_row current_row;
+  editor_row *current_rows;
   struct termios orig_termios;
 } editor_cofig;
 
@@ -114,12 +114,31 @@ void editor_draw_rows(append_buffer *ab) {
         ab_append(ab, "\r\n", 2);
       }
     } else {
-      int current_row_length = edconfig.current_row.size;
-      if (current_row_length > edconfig.screen_columns) {
-        ab_append(ab, edconfig.current_row.chars, current_row_length);
+      int last_row_length = edconfig.current_rows[y].size;
+
+      if (last_row_length > edconfig.screen_columns) {
+        last_row_length = edconfig.screen_columns;
       }
+
+      ab_append(ab, edconfig.current_rows[y].chars, last_row_length);
     }
   }
+}
+
+void editor_append_row(char *s, size_t len) {
+  edconfig.current_rows = realloc(
+    edconfig.current_rows,
+    sizeof(editor_row) * (edconfig.number_of_rows + 1)
+  );
+
+  int last_row_n = edconfig.number_of_rows;
+  edconfig.current_rows[last_row_n].size = len;
+  edconfig.current_rows[last_row_n].chars = malloc(len + 1);
+
+  memcpy(edconfig.current_rows[last_row_n].chars, s, len);
+
+  edconfig.current_rows[last_row_n].chars[len] = '\0';
+  edconfig.number_of_rows++;
 }
 
 void editor_open(char *file_name) {
@@ -133,27 +152,13 @@ void editor_open(char *file_name) {
   size_t line_cap = 0;
   ssize_t line_length;
 
-  line_length = getline(&line, &line_cap, file_processor);
-
-  if (line_length != -1) {
-    while (line_length > 0 && (
-      line[line_length - 1] == '\n' ||
-        line[line_length - 1] == '\r'
-    )) {
+  while ((line_length = getline(&line, &line_cap, file_processor)) != -1) {
+    while (line_length > 0 && (line[line_length - 1] == '\n' ||
+                                line[line_length - 1] == '\r')) {
       line_length--;
     }
 
-    edconfig.current_row.size = line_length;
-    edconfig.current_row.chars = malloc(line_length + 1);
-
-    memcpy(
-      edconfig.current_row.chars,
-      line,
-      line_length
-    );
-
-    edconfig.current_row.chars[line_length] = '\0';
-    edconfig.number_of_rows = 1;
+    editor_append_row(line, line_length);
   }
 
   free(line);
@@ -410,6 +415,7 @@ void init_editor(void) {
   edconfig.cursor_x = 0;
   edconfig.cursor_y = 0;
   edconfig.number_of_rows = 0;
+  edconfig.current_rows = NULL;
 
   if (get_window_size(&edconfig.screen_rows, &edconfig.screen_columns) == -1) {
     die("get_window_size");
