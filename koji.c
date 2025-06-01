@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #define KOJI_VERSION "0.0.1"
+#define KOJI_TAB_STOP 8
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define APPEND_BUFFER_INIT { NULL, 0 }
 
@@ -31,12 +32,15 @@ typedef struct {
 
 typedef struct {
   int size;
+  int render_size;
   char *chars;
+  char *render;
 } editor_row;
 
 typedef struct {
   int cursor_x;
   int cursor_y;
+  int render_x;
   int row_offset;
   int column_offset;
   int screen_rows;
@@ -113,7 +117,9 @@ void editor_draw_rows(append_buffer *ab) {
       }
     } else {
       // read file contents up to current row
-      int last_row_length = edconfig.current_rows[file_row].size - edconfig.column_offset;
+      int last_row_length = edconfig.current_rows[
+        file_row
+      ].render_size - edconfig.column_offset;
 
       if (last_row_length < 0) {
         last_row_length = 0;
@@ -125,7 +131,7 @@ void editor_draw_rows(append_buffer *ab) {
 
       ab_append(
         ab,
-        &edconfig.current_rows[file_row].chars[edconfig.column_offset],
+        &edconfig.current_rows[file_row].render[edconfig.column_offset],
         last_row_length
       );
     }
@@ -136,6 +142,53 @@ void editor_draw_rows(append_buffer *ab) {
       ab_append(ab, "\r\n", 2);
     }
   }
+}
+
+int editor_row_cursor_x_to_render_x(editor_row *row, int cursor_x) {
+  int render_x = 0;
+  int j;
+
+  for (j = 0; j < cursor_x; j++) {
+    if (row->chars[j] == '\t') {
+      render_x += (KOJI_TAB_STOP - 1) - (render_x % KOJI_TAB_STOP);
+    }
+
+    render_x++;
+  }
+
+  return render_x;
+}
+
+void editor_update_row(editor_row *row) {
+  int tabs = 0;
+  int j;
+
+  for (j = 0; j < row->size; j++) {
+    if (row->chars[j] == '\t') {
+      tabs++;
+    }
+  }
+
+  free(row->render);
+  row->render = malloc(
+    row->size + tabs * (KOJI_TAB_STOP - 1) + 1
+  );
+
+  int idx = 0;
+  for (j = 0; j < row->size; j++) {
+    if (row->chars[j] == '\t') {
+      row->render[idx++] = ' ';
+
+      while (idx % KOJI_TAB_STOP != 0) {
+        row->render[idx++] = ' ';
+      }
+    } else {
+      row->render[idx++] = row->chars[j];
+    }
+  }
+
+  row->render[idx] = '\0';
+  row->render_size = idx;
 }
 
 void editor_append_row(char *s, size_t len) {
@@ -151,6 +204,11 @@ void editor_append_row(char *s, size_t len) {
   memcpy(edconfig.current_rows[last_row_n].chars, s, len);
 
   edconfig.current_rows[last_row_n].chars[len] = '\0';
+
+  edconfig.current_rows[last_row_n].render_size = 0;
+  edconfig.current_rows[last_row_n].render = NULL;
+  editor_update_row(&edconfig.current_rows[last_row_n]);
+
   edconfig.number_of_rows++;
 }
 
@@ -179,6 +237,15 @@ void editor_open(char *file_name) {
 }
 
 void editor_scroll(void) {
+  edconfig.render_x = 0;
+
+  if (edconfig.cursor_y < edconfig.number_of_rows) {
+    edconfig.render_x = editor_row_cursor_x_to_render_x(
+      &edconfig.current_rows[edconfig.cursor_y],
+      edconfig.cursor_x
+    );
+  }
+
   if (edconfig.cursor_y < edconfig.row_offset) {
     edconfig.row_offset = edconfig.cursor_y;
   }
@@ -187,12 +254,12 @@ void editor_scroll(void) {
     edconfig.row_offset = edconfig.cursor_y - edconfig.screen_rows + 1;
   }
 
-  if (edconfig.cursor_x < edconfig.column_offset) {
-    edconfig.column_offset = edconfig.cursor_x;
+  if (edconfig.render_x < edconfig.column_offset) {
+    edconfig.column_offset = edconfig.render_x;
   }
 
-  if (edconfig.cursor_x >= edconfig.column_offset + edconfig.screen_columns) {
-    edconfig.column_offset = edconfig.cursor_x - edconfig.screen_columns + 1;
+  if (edconfig.render_x >= edconfig.column_offset + edconfig.screen_columns) {
+    edconfig.column_offset = edconfig.render_x - edconfig.screen_columns + 1;
   }
 }
 
@@ -213,7 +280,7 @@ void editor_refresh_screen(void) {
     sizeof(cursor_buffer),
     "\x1b[%d;%dH",
     (edconfig.cursor_y - edconfig.row_offset) + 1,
-    (edconfig.cursor_x - edconfig.column_offset) + 1
+    (edconfig.render_x - edconfig.column_offset) + 1
   );
 
   ab_append(&ab, cursor_buffer, strlen(cursor_buffer));
@@ -469,6 +536,7 @@ void editor_process_key_press(void) {
 void init_editor(void) {
   edconfig.cursor_x = 0;
   edconfig.cursor_y = 0;
+  edconfig.render_x = 0;
   edconfig.row_offset = 0;
   edconfig.column_offset = 0;
   edconfig.number_of_rows = 0;
