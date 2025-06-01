@@ -67,11 +67,18 @@ void editor_clear_screen(void) {
   write(STDOUT_FILENO, "\x1b[H", 3);
 }
 
+void die(const char *s) {
+  editor_clear_screen();
+  perror(s);
+  exit(1);
+}
+
 void editor_draw_rows(append_buffer *ab) {
   int y;
   for (y = 0; y < edconfig.screen_rows; y++) {
     if (y >= edconfig.number_of_rows) {
-      if (y == edconfig.screen_rows / 3) {
+      if (!edconfig.number_of_rows &&
+            y == edconfig.screen_rows / 3) {
         char welcome[80];
 
         int welcome_length = snprintf(
@@ -115,18 +122,42 @@ void editor_draw_rows(append_buffer *ab) {
   }
 }
 
-void editor_open(void) {
-  char *line = "Hello, world!";
-  ssize_t line_length = 13;
-  edconfig.current_row.size = line_length;
-  edconfig.current_row.chars = malloc(line_length + 1);
-  memcpy(
-    edconfig.current_row.chars,
-    line,
-    line_length
-  );
-  edconfig.current_row.chars[line_length] = '\0';
-  edconfig.number_of_rows = 1;
+void editor_open(char *file_name) {
+  FILE *file_processor = fopen(file_name, "r");
+
+  if (!file_processor) {
+    die("fopen");
+  }
+
+  char *line = NULL;
+  size_t line_cap = 0;
+  ssize_t line_length;
+
+  line_length = getline(&line, &line_cap, file_processor);
+
+  if (line_length != -1) {
+    while (line_length > 0 && (
+      line[line_length - 1] == '\n' ||
+        line[line_length - 1] == '\r'
+    )) {
+      line_length--;
+    }
+
+    edconfig.current_row.size = line_length;
+    edconfig.current_row.chars = malloc(line_length + 1);
+
+    memcpy(
+      edconfig.current_row.chars,
+      line,
+      line_length
+    );
+
+    edconfig.current_row.chars[line_length] = '\0';
+    edconfig.number_of_rows = 1;
+  }
+
+  free(line);
+  fclose(file_processor);
 }
 
 void editor_refresh_screen(void) {
@@ -152,12 +183,6 @@ void editor_refresh_screen(void) {
 
   write(STDOUT_FILENO, ab.buffer, ab.len);
   ab_free(&ab);
-}
-
-void die(const char *s) {
-  editor_clear_screen();
-  perror(s);
-  exit(1);
 }
 
 void disable_raw_mode(void) {
@@ -391,10 +416,13 @@ void init_editor(void) {
   }
 }
 
-int main(void) {
+int main(int argc, char *argv[]) {
   enable_raw_mode();
   init_editor();
-  editor_open();
+
+  if (argc >= 2) {
+    editor_open(argv[1]);
+  }
 
   while (1) {
     editor_refresh_screen();
