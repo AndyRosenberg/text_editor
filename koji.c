@@ -77,6 +77,7 @@ void editor_draw_rows(append_buffer *ab) {
   int y;
   for (y = 0; y < edconfig.screen_rows; y++) {
     if (y >= edconfig.number_of_rows) {
+      // blank file check
       if (!edconfig.number_of_rows &&
             y == edconfig.screen_rows / 3) {
         char welcome[80];
@@ -107,13 +108,8 @@ void editor_draw_rows(append_buffer *ab) {
       } else {
         ab_append(ab, "~", 1);
       }
-
-      ab_append(ab, "\x1b[K", 3);
-
-      if (y < edconfig.screen_rows - 1) {
-        ab_append(ab, "\r\n", 2);
-      }
     } else {
+      // read file contents
       int last_row_length = edconfig.current_rows[y].size;
 
       if (last_row_length > edconfig.screen_columns) {
@@ -121,6 +117,11 @@ void editor_draw_rows(append_buffer *ab) {
       }
 
       ab_append(ab, edconfig.current_rows[y].chars, last_row_length);
+    }
+
+    ab_append(ab, "\x1b[K", 3);
+    if (y < edconfig.screen_rows - 1) {
+      ab_append(ab, "\r\n", 2);
     }
   }
 }
