@@ -513,6 +513,17 @@ void editor_process_key_press(void) {
     case PAGE_UP:
     case PAGE_DOWN:
       {
+        if (c == PAGE_UP) {
+          edconfig.cursor_y = edconfig.row_offset;
+        } else if (c == PAGE_DOWN) {
+          edconfig.cursor_y = edconfig.row_offset +
+            edconfig.screen_rows - 1;
+
+          if (edconfig.cursor_y > edconfig.number_of_rows) {
+            edconfig.cursor_y = edconfig.number_of_rows;
+          }
+        }
+
         int times = edconfig.screen_rows;
         while (times--) {
           if (c == PAGE_UP) {
