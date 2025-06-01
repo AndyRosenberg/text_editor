@@ -213,7 +213,7 @@ void editor_refresh_screen(void) {
     sizeof(cursor_buffer),
     "\x1b[%d;%dH",
     (edconfig.cursor_y - edconfig.row_offset) + 1,
-    (edconfig.cursor_x - edconfig.column_offset + 1
+    (edconfig.cursor_x - edconfig.column_offset) + 1
   );
 
   ab_append(&ab, cursor_buffer, strlen(cursor_buffer));
@@ -376,15 +376,29 @@ int editor_read_key(void) {
 }
 
 void editor_move_cursor(int key) {
+  editor_row *current_row = (
+    edconfig.cursor_y >= edconfig.number_of_rows
+  ) ? NULL : &edconfig.current_rows[edconfig.cursor_y];
+
   switch (key) {
     case ARROW_LEFT:
       if (edconfig.cursor_x != 0) {
         edconfig.cursor_x--;
+      } else if (edconfig.cursor_y > 0) {
+        edconfig.cursor_y--;
+        edconfig.cursor_x = edconfig.current_rows[
+          edconfig.cursor_y
+        ].size;
       }
 
       break;
     case ARROW_RIGHT:
-      edconfig.cursor_x++;
+      if (current_row && edconfig.cursor_x < current_row->size) {
+        edconfig.cursor_x++;
+      } else if (current_row && edconfig.cursor_x == current_row->size) {
+        edconfig.cursor_y++;
+        edconfig.cursor_x = 0;
+      }
 
       break;
     case ARROW_UP:
@@ -399,6 +413,16 @@ void editor_move_cursor(int key) {
       }
 
       break;
+  }
+
+  current_row = (
+    edconfig.cursor_y >= edconfig.number_of_rows
+  ) ? NULL : &edconfig.current_rows[edconfig.cursor_y];
+
+  int current_row_length = current_row ? current_row->size : 0;
+
+  if (edconfig.cursor_x > current_row_length) {
+    edconfig.cursor_x = current_row_length;
   }
 }
 
