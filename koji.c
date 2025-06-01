@@ -37,6 +37,7 @@ typedef struct {
 typedef struct {
   int cursor_x;
   int cursor_y;
+  int row_offset;
   int screen_rows;
   int screen_columns;
   int number_of_rows;
@@ -76,8 +77,9 @@ void die(const char *s) {
 void editor_draw_rows(append_buffer *ab) {
   int y;
   for (y = 0; y < edconfig.screen_rows; y++) {
-    if (y >= edconfig.number_of_rows) {
-      // blank file check
+    int file_row = y + edconfig.row_offset;
+    if (file_row >= edconfig.number_of_rows) {
+      // check for blank file
       if (!edconfig.number_of_rows &&
             y == edconfig.screen_rows / 3) {
         char welcome[80];
@@ -109,16 +111,17 @@ void editor_draw_rows(append_buffer *ab) {
         ab_append(ab, "~", 1);
       }
     } else {
-      // read file contents
-      int last_row_length = edconfig.current_rows[y].size;
+      // read file contents up to current row
+      int last_row_length = edconfig.current_rows[file_row].size;
 
       if (last_row_length > edconfig.screen_columns) {
         last_row_length = edconfig.screen_columns;
       }
 
-      ab_append(ab, edconfig.current_rows[y].chars, last_row_length);
+      ab_append(ab, edconfig.current_rows[file_row].chars, last_row_length);
     }
 
+    // append newlines and clear other terminal contents
     ab_append(ab, "\x1b[K", 3);
     if (y < edconfig.screen_rows - 1) {
       ab_append(ab, "\r\n", 2);
@@ -166,7 +169,19 @@ void editor_open(char *file_name) {
   fclose(file_processor);
 }
 
+void editor_scroll(void) {
+  if (edconfig.cursor_y < edconfig.row_offset) {
+    edconfig.row_offset = edconfig.cursor_y;
+  }
+
+  if (edconfig.cursor_y >= edconfig.row_offset + edconfig.screen_rows) {
+    edconfig.row_offset = edconfig.cursor_y - edconfig.screen_rows + 1;
+  }
+}
+
 void editor_refresh_screen(void) {
+  editor_scroll();
+
   append_buffer ab = APPEND_BUFFER_INIT;
 
   ab_append(&ab, "\x1b[?25l", 6);
@@ -364,7 +379,7 @@ void editor_move_cursor(int key) {
 
       break;
     case ARROW_DOWN:
-      if (edconfig.cursor_y != edconfig.screen_rows - 1) {
+      if (edconfig.cursor_y < edconfig.number_of_rows) {
         edconfig.cursor_y++;
       }
 
@@ -415,6 +430,7 @@ void editor_process_key_press(void) {
 void init_editor(void) {
   edconfig.cursor_x = 0;
   edconfig.cursor_y = 0;
+  edconfig.row_offset = 0;
   edconfig.number_of_rows = 0;
   edconfig.current_rows = NULL;
 
