@@ -146,24 +146,39 @@ void editor_draw_rows(append_buffer *ab) {
 void editor_draw_status_bar(append_buffer *ab) {
   ab_append(ab, "\x1b[7m", 4);
 
-  char status_bar_text[80];
-  int status_bar_len = snprintf(
-    status_bar_text,
-    sizeof(status_bar_text),
+  char status_bar_left_text[80];
+  char status_bar_right_text[80];
+
+  int status_bar_left_len = snprintf(
+    status_bar_left_text,
+    sizeof(status_bar_left_text),
     "%.20s - %d lines",
     edconfig.file_name ? edconfig.file_name : "[No Name]",
     edconfig.number_of_rows
   );
 
-  if (status_bar_len > edconfig.screen_columns) {
-    status_bar_len = edconfig.screen_columns;
+  int status_bar_right_len = snprintf(
+    status_bar_right_text,
+    sizeof(status_bar_right_text),
+    "line %d/%d",
+    edconfig.cursor_y + 1,
+    edconfig.number_of_rows
+  );
+
+  if (status_bar_left_len > edconfig.screen_columns) {
+    status_bar_left_len = edconfig.screen_columns;
   }
 
-  ab_append(ab, status_bar_text, status_bar_len);
+  ab_append(ab, status_bar_left_text, status_bar_left_len);
 
-  while (status_bar_len < edconfig.screen_columns) {
-    ab_append(ab, " ", 1);
-    status_bar_len++;
+  while (status_bar_left_len < edconfig.screen_columns) {
+    if (edconfig.screen_columns - status_bar_left_len == status_bar_right_len) {
+      ab_append(ab, status_bar_right_text, status_bar_right_len);
+      break;
+    } else {
+      ab_append(ab, " ", 1);
+      status_bar_left_len++;
+    }
   }
 
   ab_append(ab, "\x1b[m", 3);
