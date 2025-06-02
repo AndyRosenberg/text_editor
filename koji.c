@@ -47,6 +47,7 @@ typedef struct {
   int screen_columns;
   int number_of_rows;
   editor_row *current_rows;
+  char *file_name;
   struct termios orig_termios;
 } editor_cofig;
 
@@ -138,10 +139,34 @@ void editor_draw_rows(append_buffer *ab) {
 
     // append newlines and clear other terminal contents
     ab_append(ab, "\x1b[K", 3);
-    if (y < edconfig.screen_rows - 1) {
-      ab_append(ab, "\r\n", 2);
-    }
+    ab_append(ab, "\r\n", 2);
   }
+}
+
+void editor_draw_status_bar(append_buffer *ab) {
+  ab_append(ab, "\x1b[7m", 4);
+
+  char status_bar_text[80];
+  int status_bar_len = snprintf(
+    status_bar_text,
+    sizeof(status_bar_text),
+    "%.20s - %d lines",
+    edconfig.file_name ? edconfig.file_name : "[No Name]",
+    edconfig.number_of_rows
+  );
+
+  if (status_bar_len > edconfig.screen_columns) {
+    status_bar_len = edconfig.screen_columns;
+  }
+
+  ab_append(ab, status_bar_text, status_bar_len);
+
+  while (status_bar_len < edconfig.screen_columns) {
+    ab_append(ab, " ", 1);
+    status_bar_len++;
+  }
+
+  ab_append(ab, "\x1b[m", 3);
 }
 
 int editor_row_cursor_x_to_render_x(editor_row *row, int cursor_x) {
@@ -213,6 +238,9 @@ void editor_append_row(char *s, size_t len) {
 }
 
 void editor_open(char *file_name) {
+  free(edconfig.file_name);
+  edconfig.file_name = strdup(file_name);
+
   FILE *file_processor = fopen(file_name, "r");
 
   if (!file_processor) {
@@ -272,6 +300,7 @@ void editor_refresh_screen(void) {
   ab_append(&ab, "\x1b[H", 3);
 
   editor_draw_rows(&ab);
+  editor_draw_status_bar(&ab);
 
   char cursor_buffer[32];
 
@@ -556,10 +585,13 @@ void init_editor(void) {
   edconfig.column_offset = 0;
   edconfig.number_of_rows = 0;
   edconfig.current_rows = NULL;
+  edconfig.file_name = NULL;
 
   if (get_window_size(&edconfig.screen_rows, &edconfig.screen_columns) == -1) {
     die("get_window_size");
   }
+
+  edconfig.screen_rows -= 1;
 }
 
 int main(int argc, char *argv[]) {
