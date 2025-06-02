@@ -507,7 +507,11 @@ void editor_process_key_press(void) {
       break;
 
     case END_KEY:
-      edconfig.cursor_x = edconfig.screen_columns - 1;
+      if (edconfig.cursor_y < edconfig.number_of_rows) {
+        edconfig.cursor_x = edconfig.current_rows[
+          edconfig.cursor_y
+        ].size;
+      }
       break;
 
     case PAGE_UP:
