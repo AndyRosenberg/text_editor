@@ -1,11 +1,13 @@
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <termios.h>
+#include <time.h>
 #include <unistd.h>
 
 #define KOJI_VERSION "0.0.1"
@@ -48,6 +50,8 @@ typedef struct {
   int number_of_rows;
   editor_row *current_rows;
   char *file_name;
+  char status_message[80];
+  time_t status_message_time;
   struct termios orig_termios;
 } editor_cofig;
 
@@ -182,6 +186,20 @@ void editor_draw_status_bar(append_buffer *ab) {
   }
 
   ab_append(ab, "\x1b[m", 3);
+  ab_append(ab, "\r\n", 2);
+}
+
+void editor_draw_message_bar(append_buffer *ab) {
+  ab_append(ab, "\x1b[K", 3);
+  int message_length = strlen(edconfig.status_message);
+
+  if (message_length > edconfig.screen_columns) {
+    message_length = edconfig.screen_columns;
+  }
+
+  if (message_length && time(NULL) - edconfig.status_message_time < 5) {
+    ab_append(ab, edconfig.status_message, message_length);
+  }
 }
 
 int editor_row_cursor_x_to_render_x(editor_row *row, int cursor_x) {
@@ -316,6 +334,7 @@ void editor_refresh_screen(void) {
 
   editor_draw_rows(&ab);
   editor_draw_status_bar(&ab);
+  editor_draw_message_bar(&ab);
 
   char cursor_buffer[32];
 
@@ -332,6 +351,19 @@ void editor_refresh_screen(void) {
 
   write(STDOUT_FILENO, ab.buffer, ab.len);
   ab_free(&ab);
+}
+
+void editor_set_status_message(const char *fmt, ...) {
+  va_list params;
+  va_start(params, fmt);
+  vsnprintf(
+    edconfig.status_message,
+    sizeof(edconfig.status_message),
+    fmt,
+    params
+  );
+  va_end(params);
+  edconfig.status_message_time = time(NULL);
 }
 
 void disable_raw_mode(void) {
@@ -601,12 +633,14 @@ void init_editor(void) {
   edconfig.number_of_rows = 0;
   edconfig.current_rows = NULL;
   edconfig.file_name = NULL;
+  edconfig.status_message[0] = '\0';
+  edconfig.status_message_time = 0;
 
   if (get_window_size(&edconfig.screen_rows, &edconfig.screen_columns) == -1) {
     die("get_window_size");
   }
 
-  edconfig.screen_rows -= 1;
+  edconfig.screen_rows -= 2;
 }
 
 int main(int argc, char *argv[]) {
@@ -616,6 +650,8 @@ int main(int argc, char *argv[]) {
   if (argc >= 2) {
     editor_open(argv[1]);
   }
+
+  editor_set_status_message("Help: press Ctrl-Q to quit");
 
   while (1) {
     editor_refresh_screen();
