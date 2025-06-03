@@ -270,6 +270,32 @@ void editor_append_row(char *s, size_t len) {
   edconfig.number_of_rows++;
 }
 
+void editor_row_insert_char(editor_row *row, int idx, int c) {
+  if (idx < 0 || idx > row->size) {
+    idx = row->size;
+  }
+
+  row->chars = realloc(row->chars, row->size + 2);
+  memmove(&row->chars[idx + 1], &row->chars[idx], row->size - idx + 1);
+  row->size++;
+  row->chars[idx] = c;
+  editor_update_row(row);
+}
+
+void editor_insert_char(int c) {
+  if (edconfig.cursor_y == edconfig.number_of_rows) {
+    editor_append_row("", 0);
+  }
+
+  editor_row_insert_char(
+    &edconfig.current_rows[edconfig.cursor_y],
+    edconfig.cursor_x,
+    c
+  );
+
+  edconfig.cursor_x++;
+}
+
 void editor_open(char *file_name) {
   free(edconfig.file_name);
   edconfig.file_name = strdup(file_name);
@@ -620,6 +646,10 @@ void editor_process_key_press(void) {
     case ARROW_UP:
     case ARROW_DOWN:
       editor_move_cursor(c);
+      break;
+
+    default:
+      editor_insert_char(c);
       break;
   }
 }
