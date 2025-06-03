@@ -1,5 +1,6 @@
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -16,6 +17,7 @@
 #define APPEND_BUFFER_INIT { NULL, 0 }
 
 enum MOVEMENT_KEYS {
+  BACKSPACE = 127,
   ARROW_LEFT = 1000,
   ARROW_RIGHT,
   ARROW_UP,
@@ -296,6 +298,34 @@ void editor_insert_char(int c) {
   edconfig.cursor_x++;
 }
 
+char *editor_rows_to_string(int *buffer_length) {
+  int total_length = 0;
+  int j;
+
+  for (j = 0; j < edconfig.number_of_rows; j++) {
+    total_length += edconfig.current_rows[j].size + 1;
+  }
+
+  *buffer_length = total_length;
+
+  char *buffer = malloc(total_length);
+  char *pointer = buffer;
+
+  for (j = 0; j < edconfig.number_of_rows; j++) {
+    memcpy(
+      pointer,
+      edconfig.current_rows[j].chars,
+      edconfig.current_rows[j].size
+    );
+
+    pointer += edconfig.current_rows[j].size;
+    *pointer = '\n';
+    pointer++;
+  }
+
+  return buffer;
+}
+
 void editor_open(char *file_name) {
   free(edconfig.file_name);
   edconfig.file_name = strdup(file_name);
@@ -321,6 +351,56 @@ void editor_open(char *file_name) {
 
   free(line);
   fclose(file_processor);
+}
+
+void editor_set_status_message(const char *fmt, ...) {
+  va_list params;
+  va_start(params, fmt);
+  vsnprintf(
+    edconfig.status_message,
+    sizeof(edconfig.status_message),
+    fmt,
+    params
+  );
+  va_end(params);
+  edconfig.status_message_time = time(NULL);
+}
+
+void editor_save(void) {
+  if (edconfig.file_name == NULL) {
+    return;
+  }
+
+  int len;
+  char *buffer = editor_rows_to_string(&len);
+
+  int file_dump = open(
+    edconfig.file_name,
+    O_RDWR | O_CREAT,
+    0644
+  );
+
+  if (file_dump != -1) {
+    if (ftruncate(file_dump, len) != -1) {
+      if (write(file_dump, buffer, len) == len) {
+        close(file_dump);
+        free(buffer);
+        editor_set_status_message(
+          "%d bytes written to disk",
+          len
+        );
+        return;
+      }
+    }
+
+    close(file_dump);
+  }
+
+  free(buffer);
+  editor_set_status_message(
+    "Can't save! I/O error: %s",
+    strerror(errno)
+  );
 }
 
 void editor_scroll(void) {
@@ -377,19 +457,6 @@ void editor_refresh_screen(void) {
 
   write(STDOUT_FILENO, ab.buffer, ab.len);
   ab_free(&ab);
-}
-
-void editor_set_status_message(const char *fmt, ...) {
-  va_list params;
-  va_start(params, fmt);
-  vsnprintf(
-    edconfig.status_message,
-    sizeof(edconfig.status_message),
-    fmt,
-    params
-  );
-  va_end(params);
-  edconfig.status_message_time = time(NULL);
 }
 
 void disable_raw_mode(void) {
@@ -599,9 +666,17 @@ void editor_process_key_press(void) {
   int c = editor_read_key();
 
   switch (c) {
+    case '\r':
+      // TODO
+      break;
+
     case CTRL_KEY('q'):
       editor_clear_screen();
       exit(0);
+      break;
+
+    case CTRL_KEY('s'):
+      editor_save();
       break;
 
     case HOME_KEY:
@@ -614,6 +689,12 @@ void editor_process_key_press(void) {
           edconfig.cursor_y
         ].size;
       }
+      break;
+
+    case BACKSPACE:
+    case CTRL_KEY('h'):
+    case DEL_KEY:
+      // TODO
       break;
 
     case PAGE_UP:
@@ -646,6 +727,10 @@ void editor_process_key_press(void) {
     case ARROW_UP:
     case ARROW_DOWN:
       editor_move_cursor(c);
+      break;
+
+    case CTRL_KEY('l'):
+    case '\x1b':
       break;
 
     default:
@@ -681,7 +766,7 @@ int main(int argc, char *argv[]) {
     editor_open(argv[1]);
   }
 
-  editor_set_status_message("Help: press Ctrl-Q to quit");
+  editor_set_status_message("Help: press Ctrl-s to save, Ctrl-Q to quit");
 
   while (1) {
     editor_refresh_screen();
