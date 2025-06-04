@@ -276,6 +276,26 @@ void editor_append_row(char *s, size_t len) {
   edconfig.is_dirty++;
 }
 
+void editor_free_row(editor_row *row) {
+  free(row->render);
+  free(row->chars);
+}
+
+void editor_delete_row(int idx) {
+  if (idx < 0 || idx >= edconfig.number_of_rows) {
+    return;
+  }
+
+  editor_free_row(&edconfig.current_rows[idx]);
+  memmove(
+    &edconfig.current_rows[idx],
+    &edconfig.current_rows[idx + 1],
+    sizeof(editor_row) * (edconfig.number_of_rows - idx - 1)
+  );
+  edconfig.number_of_rows--;
+  edconfig.is_dirty++;
+}
+
 void editor_row_insert_char(editor_row *row, int idx, int c) {
   if (idx < 0 || idx > row->size) {
     idx = row->size;
@@ -285,6 +305,15 @@ void editor_row_insert_char(editor_row *row, int idx, int c) {
   memmove(&row->chars[idx + 1], &row->chars[idx], row->size - idx + 1);
   row->size++;
   row->chars[idx] = c;
+  editor_update_row(row);
+  edconfig.is_dirty++;
+}
+
+void editor_row_append_string(editor_row *row, char *s, size_t len) {
+  row->chars = realloc(row->chars, row->size + len + 1);
+  memcpy(&row->chars[row->size], s, len);
+  row->size += len;
+  row->chars[row->size] = '\0';
   editor_update_row(row);
   edconfig.is_dirty++;
 }
@@ -315,7 +344,10 @@ void editor_insert_char(int c) {
 }
 
 void editor_delete_char(void) {
-  if (edconfig.cursor_y == edconfig.number_of_rows) {
+  if (
+    edconfig.cursor_y == edconfig.number_of_rows ||
+      (!edconfig.cursor_x && !edconfig.cursor_y)
+  ) {
     return;
   }
 
@@ -324,6 +356,17 @@ void editor_delete_char(void) {
   if (edconfig.cursor_x > 0) {
     editor_row_delete_char(current_row, edconfig.cursor_x - 1);
     edconfig.cursor_x--;
+  } else {
+    edconfig.cursor_x = edconfig.current_rows[edconfig.cursor_y - 1].size;
+
+    editor_row_append_string(
+      &edconfig.current_rows[edconfig.cursor_y - 1],
+      current_row->chars,
+      current_row->size
+    );
+
+    editor_delete_row(edconfig.cursor_y);
+    edconfig.cursor_y--;
   }
 }
 
