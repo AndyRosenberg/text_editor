@@ -474,7 +474,11 @@ void editor_set_status_message(const char *fmt, ...) {
 
 void editor_save(void) {
   if (edconfig.file_name == NULL) {
-    edconfig.file_name = editor_prompt("Save as: %s");
+    edconfig.file_name = editor_prompt("Save as: %s (esc to cancel)");
+    if (edconfig.file_name == NULL) {
+      editor_set_status_message("Save aborted.");
+      return;
+    }
   }
 
   int len;
@@ -730,7 +734,12 @@ char *editor_prompt(char *prompt) {
     editor_refresh_screen();
 
     int c = editor_read_key();
-    if (c == '\x1b') {
+
+    if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
+      if (buffer_length != 0) {
+        buffer[--buffer_length] = '\0';
+      }
+    } else if (c == '\x1b') {
       editor_set_status_message("");
       free(buffer);
       return NULL;
