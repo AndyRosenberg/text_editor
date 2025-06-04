@@ -61,6 +61,10 @@ typedef struct {
 
 editor_cofig edconfig;
 
+/*** Prototypes ***/
+char *editor_prompt(char *prompt);
+/******/
+
 void ab_append(append_buffer *ab, const char *s, int len) {
   char *new = realloc(ab->buffer, ab->len + len);
 
@@ -470,7 +474,7 @@ void editor_set_status_message(const char *fmt, ...) {
 
 void editor_save(void) {
   if (edconfig.file_name == NULL) {
-    return;
+    edconfig.file_name = editor_prompt("Save as: %s");
   }
 
   int len;
@@ -712,6 +716,38 @@ int editor_read_key(void) {
   }
 
   return c;
+}
+
+char *editor_prompt(char *prompt) {
+  size_t buffer_size = 128;
+  char *buffer = malloc(buffer_size);
+  size_t buffer_length = 0;
+
+  buffer[0] = '\0';
+
+  while (1) {
+    editor_set_status_message(prompt, buffer);
+    editor_refresh_screen();
+
+    int c = editor_read_key();
+    if (c == '\x1b') {
+      editor_set_status_message("");
+      free(buffer);
+      return NULL;
+    } else if (c == '\r') {
+      if (buffer_length != 0) {
+        editor_set_status_message("");
+        return buffer;
+      }
+    } else if (!iscntrl(c) && c < 128) {
+      if (buffer_length == buffer_size - 1) {
+        buffer_size *= 2;
+        buffer = realloc(buffer, buffer_size);
+      }
+      buffer[buffer_length++] = c;
+      buffer[buffer_length] = '\0';
+    }
+  }
 }
 
 void editor_move_cursor(int key) {
