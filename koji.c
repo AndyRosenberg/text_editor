@@ -254,23 +254,32 @@ void editor_update_row(editor_row *row) {
   row->render_size = idx;
 }
 
-void editor_append_row(char *s, size_t len) {
+void editor_insert_row(int idx, char *s, size_t len) {
+  if (idx < 0 || idx > edconfig.number_of_rows) {
+    return;
+  }
+
   edconfig.current_rows = realloc(
     edconfig.current_rows,
     sizeof(editor_row) * (edconfig.number_of_rows + 1)
   );
 
-  int last_row_n = edconfig.number_of_rows;
-  edconfig.current_rows[last_row_n].size = len;
-  edconfig.current_rows[last_row_n].chars = malloc(len + 1);
+  memmove(
+    &edconfig.current_rows[idx + 1],
+    &edconfig.current_rows[idx],
+    sizeof(editor_row) * (edconfig.number_of_rows - idx)
+  );
 
-  memcpy(edconfig.current_rows[last_row_n].chars, s, len);
+  edconfig.current_rows[idx].size = len;
+  edconfig.current_rows[idx].chars = malloc(len + 1);
 
-  edconfig.current_rows[last_row_n].chars[len] = '\0';
+  memcpy(edconfig.current_rows[idx].chars, s, len);
 
-  edconfig.current_rows[last_row_n].render_size = 0;
-  edconfig.current_rows[last_row_n].render = NULL;
-  editor_update_row(&edconfig.current_rows[last_row_n]);
+  edconfig.current_rows[idx].chars[len] = '\0';
+
+  edconfig.current_rows[idx].render_size = 0;
+  edconfig.current_rows[idx].render = NULL;
+  editor_update_row(&edconfig.current_rows[idx]);
 
   edconfig.number_of_rows++;
   edconfig.is_dirty++;
@@ -331,7 +340,7 @@ void editor_row_delete_char(editor_row *row, int idx) {
 
 void editor_insert_char(int c) {
   if (edconfig.cursor_y == edconfig.number_of_rows) {
-    editor_append_row("", 0);
+    editor_insert_row(edconfig.cursor_y, "", 0);
   }
 
   editor_row_insert_char(
@@ -341,6 +350,26 @@ void editor_insert_char(int c) {
   );
 
   edconfig.cursor_x++;
+}
+
+void editor_insert_newline(void) {
+  if (edconfig.cursor_x == 0) {
+    editor_insert_row(edconfig.cursor_y, "", 0);
+  } else {
+    editor_row *current_row = &edconfig.current_rows[edconfig.cursor_y];
+    editor_insert_row(
+      edconfig.cursor_y + 1,
+      &current_row->chars[edconfig.cursor_x],
+      current_row->size - edconfig.cursor_x
+    );
+    current_row = &edconfig.current_rows[edconfig.cursor_y];
+    current_row->size = edconfig.cursor_x;
+    current_row->chars[current_row->size] = '\0';
+    editor_update_row(current_row);
+  }
+
+  edconfig.cursor_y++;
+  edconfig.cursor_x = 0;
 }
 
 void editor_delete_char(void) {
@@ -418,7 +447,7 @@ void editor_open(char *file_name) {
       line_length--;
     }
 
-    editor_append_row(line, line_length);
+    editor_insert_row(edconfig.cursor_y, line, line_length);
   }
 
   free(line);
@@ -742,7 +771,7 @@ void editor_process_key_press(void) {
 
   switch (c) {
     case '\r':
-      // TODO
+      editor_insert_newline();
       break;
 
     case CTRL_KEY('x'):
