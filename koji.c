@@ -289,6 +289,17 @@ void editor_row_insert_char(editor_row *row, int idx, int c) {
   edconfig.is_dirty++;
 }
 
+void editor_row_delete_char(editor_row *row, int idx) {
+  if (idx < 0 || idx >= row->size) {
+    return;
+  }
+
+  memmove(&row->chars[idx], &row->chars[idx + 1], row->size - idx);
+  row->size--;
+  editor_update_row(row);
+  edconfig.is_dirty++;
+}
+
 void editor_insert_char(int c) {
   if (edconfig.cursor_y == edconfig.number_of_rows) {
     editor_append_row("", 0);
@@ -301,6 +312,19 @@ void editor_insert_char(int c) {
   );
 
   edconfig.cursor_x++;
+}
+
+void editor_delete_char(void) {
+  if (edconfig.cursor_y == edconfig.number_of_rows) {
+    return;
+  }
+
+  editor_row *current_row = &edconfig.current_rows[edconfig.cursor_y];
+
+  if (edconfig.cursor_x > 0) {
+    editor_row_delete_char(current_row, edconfig.cursor_x - 1);
+    edconfig.cursor_x--;
+  }
 }
 
 char *editor_rows_to_string(int *buffer_length) {
@@ -714,7 +738,11 @@ void editor_process_key_press(void) {
     case BACKSPACE:
     case CTRL_KEY('h'):
     case DEL_KEY:
-      // TODO
+      if (c == DEL_KEY) {
+        editor_move_cursor(ARROW_RIGHT);
+      }
+
+      editor_delete_char();
       break;
 
     case PAGE_UP:
