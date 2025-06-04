@@ -13,6 +13,7 @@
 
 #define KOJI_VERSION "0.0.1"
 #define KOJI_TAB_STOP 8
+#define KILO_QUIT_TIMES 1
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define APPEND_BUFFER_INIT { NULL, 0 }
 
@@ -51,6 +52,7 @@ typedef struct {
   int screen_columns;
   int number_of_rows;
   editor_row *current_rows;
+  int is_dirty;
   char *file_name;
   char status_message[80];
   time_t status_message_time;
@@ -158,9 +160,10 @@ void editor_draw_status_bar(append_buffer *ab) {
   int status_bar_left_len = snprintf(
     status_bar_left_text,
     sizeof(status_bar_left_text),
-    "%.20s - %d lines",
+    "%.20s - %d lines %s",
     edconfig.file_name ? edconfig.file_name : "[No Name]",
-    edconfig.number_of_rows
+    edconfig.number_of_rows,
+    edconfig.is_dirty ? "(modified)": ""
   );
 
   int status_bar_right_len = snprintf(
@@ -270,6 +273,7 @@ void editor_append_row(char *s, size_t len) {
   editor_update_row(&edconfig.current_rows[last_row_n]);
 
   edconfig.number_of_rows++;
+  edconfig.is_dirty++;
 }
 
 void editor_row_insert_char(editor_row *row, int idx, int c) {
@@ -282,6 +286,7 @@ void editor_row_insert_char(editor_row *row, int idx, int c) {
   row->size++;
   row->chars[idx] = c;
   editor_update_row(row);
+  edconfig.is_dirty++;
 }
 
 void editor_insert_char(int c) {
@@ -351,6 +356,7 @@ void editor_open(char *file_name) {
 
   free(line);
   fclose(file_processor);
+  edconfig.is_dirty = 0;
 }
 
 void editor_set_status_message(const char *fmt, ...) {
@@ -385,6 +391,7 @@ void editor_save(void) {
       if (write(file_dump, buffer, len) == len) {
         close(file_dump);
         free(buffer);
+        edconfig.is_dirty = 0;
         editor_set_status_message(
           "%d bytes written to disk",
           len
@@ -663,6 +670,7 @@ void editor_move_cursor(int key) {
 }
 
 void editor_process_key_press(void) {
+  static int quit_times = KILO_QUIT_TIMES;
   int c = editor_read_key();
 
   switch (c) {
@@ -670,7 +678,19 @@ void editor_process_key_press(void) {
       // TODO
       break;
 
+    case CTRL_KEY('x'):
+      editor_save();
+      editor_clear_screen();
+      exit(0);
+
     case CTRL_KEY('q'):
+      if (edconfig.is_dirty && quit_times) {
+        editor_set_status_message(
+          "File has unsaved changes, press Ctrl-Q again to quit"
+        );
+        quit_times--;
+        return;
+      }
       editor_clear_screen();
       exit(0);
       break;
@@ -737,6 +757,8 @@ void editor_process_key_press(void) {
       editor_insert_char(c);
       break;
   }
+
+  quit_times = KILO_QUIT_TIMES;
 }
 
 void init_editor(void) {
@@ -747,6 +769,7 @@ void init_editor(void) {
   edconfig.column_offset = 0;
   edconfig.number_of_rows = 0;
   edconfig.current_rows = NULL;
+  edconfig.is_dirty = 0;
   edconfig.file_name = NULL;
   edconfig.status_message[0] = '\0';
   edconfig.status_message_time = 0;
