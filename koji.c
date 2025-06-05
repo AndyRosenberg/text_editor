@@ -13,7 +13,7 @@
 
 #define KOJI_VERSION "0.0.1"
 #define KOJI_TAB_STOP 8
-#define KILO_QUIT_TIMES 1
+#define KOJI_QUIT_TIMES 1
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define APPEND_BUFFER_INIT { NULL, 0 }
 
@@ -224,6 +224,27 @@ int editor_row_cursor_x_to_render_x(editor_row *row, int cursor_x) {
   }
 
   return render_x;
+}
+
+int editor_row_render_x_to_cursor_x(editor_row *row, int render_x) {
+  int current_render_x = 0;
+  int cursor_x;
+
+  for (cursor_x = 0; cursor_x < row->size; cursor_x++) {
+    if (row->chars[cursor_x] == '\t') {
+      current_render_x += (KOJI_TAB_STOP - 1) - (
+        current_render_x % KOJI_TAB_STOP
+      );
+    }
+
+    current_render_x++;
+
+    if (current_render_x > render_x) {
+      return cursor_x;
+    }
+  }
+
+  return cursor_x;
 }
 
 void editor_update_row(editor_row *row) {
@@ -512,6 +533,32 @@ void editor_save(void) {
     "Can't save! I/O error: %s",
     strerror(errno)
   );
+}
+
+void editor_find(void) {
+  char *query = editor_prompt("Search: %s (esc to cancel)");
+
+  if (query == NULL) {
+    return;
+  }
+
+  int i;
+  for (i = 0; i < edconfig.number_of_rows; i++) {
+    editor_row *current_row = &edconfig.current_rows[i];
+    char *match = strstr(current_row->render, (query));
+
+    if (match) {
+      edconfig.cursor_y = i;
+      edconfig.cursor_x = editor_row_render_x_to_cursor_x(
+        current_row,
+        match - current_row->render
+      );
+      edconfig.row_offset = edconfig.number_of_rows;
+      break;
+    }
+  }
+
+  free(query);
 }
 
 void editor_scroll(void) {
@@ -811,7 +858,7 @@ void editor_move_cursor(int key) {
 }
 
 void editor_process_key_press(void) {
-  static int quit_times = KILO_QUIT_TIMES;
+  static int quit_times = KOJI_QUIT_TIMES;
   int c = editor_read_key();
 
   switch (c) {
@@ -838,6 +885,10 @@ void editor_process_key_press(void) {
 
     case CTRL_KEY('s'):
       editor_save();
+      break;
+
+    case CTRL_KEY('f'):
+      editor_find();
       break;
 
     case HOME_KEY:
@@ -903,7 +954,7 @@ void editor_process_key_press(void) {
       break;
   }
 
-  quit_times = KILO_QUIT_TIMES;
+  quit_times = KOJI_QUIT_TIMES;
 }
 
 void init_editor(void) {
