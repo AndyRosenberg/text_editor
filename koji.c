@@ -32,7 +32,8 @@ enum MOVEMENT_KEYS {
 
 enum EDITOR_HIGHLIGHT {
   HIGHLIGHT_NORMAL = 0,
-  HIGHLIGHT_NUMBER
+  HIGHLIGHT_NUMBER,
+  HIGHLIGHT_MATCH
 };
 
 typedef struct {
@@ -176,7 +177,7 @@ void editor_draw_rows(append_buffer *ab) {
             int color_length = snprintf(
               buffer,
               sizeof(buffer),
-              "\x1b[%dm]",
+              "\x1b[%dm",
               color
             );
             ab_append(ab, buffer, color_length);
@@ -584,6 +585,20 @@ void editor_find_callback(char *query, int key) {
   static int last_match = -1;
   static int direction = 1;
 
+  static int saved_highlight_line;
+  static char *saved_highlight = NULL;
+
+  if (saved_highlight) {
+    memcpy(
+      edconfig.current_rows[saved_highlight_line].highlight,
+      saved_highlight,
+      edconfig.current_rows[saved_highlight_line].render_size
+    );
+
+    free(saved_highlight);
+    saved_highlight = NULL;
+  }
+
   if (key == '\r' || key == '\x1b') {
     last_match = -1;
     direction = 1;
@@ -624,6 +639,16 @@ void editor_find_callback(char *query, int key) {
         match - current_row->render
       );
       edconfig.row_offset = edconfig.number_of_rows;
+
+      saved_highlight_line = current_match;
+      saved_highlight = malloc(current_row->render_size);
+      memcpy(saved_highlight, current_row->highlight, current_row->render_size);
+
+      memset(
+        &current_row->highlight[match - current_row->render],
+        HIGHLIGHT_MATCH,
+        strlen(query)
+      );
       break;
     }
   }
@@ -798,6 +823,8 @@ int editor_syntax_to_color(int highlight) {
   switch (highlight) {
     case HIGHLIGHT_NUMBER:
       return 31;
+    case HIGHLIGHT_MATCH:
+      return 34;
     default:
       return 37;
   }
