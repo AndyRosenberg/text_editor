@@ -17,6 +17,7 @@
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define APPEND_BUFFER_INIT { NULL, 0 }
 #define HIGHLIGHT_NUMBERS_FLAG (1<<0)
+#define HIGHLIGHT_STRINGS_FLAG (1<<1)
 
 enum MOVEMENT_KEYS {
   BACKSPACE = 127,
@@ -33,6 +34,7 @@ enum MOVEMENT_KEYS {
 
 enum EDITOR_HIGHLIGHT {
   HIGHLIGHT_NORMAL = 0,
+  HIGHLIGHT_STRING,
   HIGHLIGHT_NUMBER,
   HIGHLIGHT_MATCH
 };
@@ -82,7 +84,7 @@ editor_syntax HLDB[] = {
   {
     "c",
     C_HIGHLIGHT_EXTENSIONS,
-    HIGHLIGHT_NUMBERS_FLAG
+    HIGHLIGHT_NUMBERS_FLAG | HIGHLIGHT_STRINGS_FLAG
   }
 };
 
@@ -847,12 +849,40 @@ void editor_update_syntax(editor_row *row) {
   }
 
   int prev_separator = 1;
+  int in_string = 0;
 
   int i = 0;
   while (i < row->size) {
     char c = row->render[i];
     unsigned char prev_highlight = (i > 0) ?
       row->highlight[i - 1] : HIGHLIGHT_NORMAL;
+
+    if (edconfig.syntax->flags & HIGHLIGHT_STRINGS_FLAG) {
+      if (in_string) {
+        row->highlight[i] = HIGHLIGHT_STRING;
+
+        if (c == '\\' && i + 1 < row->render_size) {
+          row->highlight[i + 1] = HIGHLIGHT_STRING;
+          i += 2;
+          continue;
+        }
+
+        if (c == in_string) {
+          in_string = 0;
+        }
+
+        i++;
+        prev_separator = 1;
+        continue;
+      } else {
+        if (c == '"' || c == '\'') {
+          in_string = c;
+          row->highlight[i] = HIGHLIGHT_STRING;
+          i++;
+          continue;
+        }
+      }
+    }
 
     if (edconfig.syntax->flags & HIGHLIGHT_NUMBERS_FLAG) {
       if (
@@ -873,6 +903,8 @@ void editor_update_syntax(editor_row *row) {
 
 int editor_syntax_to_color(int highlight) {
   switch (highlight) {
+    case HIGHLIGHT_STRING:
+      return 35;
     case HIGHLIGHT_NUMBER:
       return 31;
     case HIGHLIGHT_MATCH:
