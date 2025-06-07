@@ -30,6 +30,11 @@ enum MOVEMENT_KEYS {
   PAGE_DOWN
 };
 
+enum EDITOR_HIGHLIGHT {
+  HIGHLIGHT_NORMAL = 0,
+  HIGHLIGHT_NUMBER
+};
+
 typedef struct {
   char *buffer;
   int len;
@@ -40,6 +45,7 @@ typedef struct {
   int render_size;
   char *chars;
   char *render;
+  unsigned char *highlight;
 } editor_row;
 
 typedef struct {
@@ -63,6 +69,8 @@ editor_cofig edconfig;
 
 /*** Prototypes ***/
 char *editor_prompt(char *prompt, void(*callback)(char *, int));
+int editor_syntax_to_color(int highlight);
+void editor_update_syntax(editor_row *row);
 /******/
 
 void ab_append(append_buffer *ab, const char *s, int len) {
@@ -142,17 +150,43 @@ void editor_draw_rows(append_buffer *ab) {
         last_row_length = edconfig.screen_columns;
       }
 
-      char *c = &edconfig.current_rows[file_row].render[edconfig.column_offset];
+      char *c = &edconfig.current_rows[
+        file_row
+      ].render[edconfig.column_offset];
 
+      unsigned char *hl = &edconfig.current_rows[
+        file_row
+      ].highlight[edconfig.column_offset];
+
+      int current_color = -1;
       int j;
+
       for (j = 0; j < last_row_length; j++) {
-        if (isdigit(c[j])) {
-          ab_append(ab, "\x1b[31m", 5);
+        if (hl[j] == HIGHLIGHT_NORMAL) {
+          if (current_color != -1) {
+            ab_append(ab, "\x1b[39m", 5);
+            current_color = -1;
+          }
+
           ab_append(ab, &c[j], 1);
-          ab_append(ab, "\x1b[39m", 5);
         } else {
+          int color = editor_syntax_to_color(hl[j]);
+          if (color != current_color) {
+            char buffer[16];
+            int color_length = snprintf(
+              buffer,
+              sizeof(buffer),
+              "\x1b[%dm]",
+              color
+            );
+            ab_append(ab, buffer, color_length);
+          }
+
           ab_append(ab, &c[j], 1);
         }
+
+        // switch back to normal color
+        ab_append(ab, "\x1b[39m", 5);
       }
     }
 
@@ -284,6 +318,8 @@ void editor_update_row(editor_row *row) {
 
   row->render[idx] = '\0';
   row->render_size = idx;
+
+  editor_update_syntax(row);
 }
 
 void editor_insert_row(int idx, char *s, size_t len) {
@@ -311,6 +347,7 @@ void editor_insert_row(int idx, char *s, size_t len) {
 
   edconfig.current_rows[idx].render_size = 0;
   edconfig.current_rows[idx].render = NULL;
+  edconfig.current_rows[idx].highlight = NULL;
   editor_update_row(&edconfig.current_rows[idx]);
 
   edconfig.number_of_rows++;
@@ -320,6 +357,7 @@ void editor_insert_row(int idx, char *s, size_t len) {
 void editor_free_row(editor_row *row) {
   free(row->render);
   free(row->chars);
+  free(row->highlight);
 }
 
 void editor_delete_row(int idx) {
@@ -741,6 +779,27 @@ int get_window_size(int *rows, int *cols) {
     *cols = window_size.ws_col;
     *rows = window_size.ws_row;
     return 0;
+  }
+}
+
+void editor_update_syntax(editor_row *row) {
+  row->highlight = realloc(row->highlight, row->render_size);
+  memset(row->highlight, HIGHLIGHT_NORMAL, row->render_size);
+
+  int i;
+  for (i = 0; i < row->render_size; i++) {
+    if (isdigit(row->render[i])) {
+      row->highlight[i] = HIGHLIGHT_NUMBER;
+    }
+  }
+}
+
+int editor_syntax_to_color(int highlight) {
+  switch (highlight) {
+    case HIGHLIGHT_NUMBER:
+      return 31;
+    default:
+      return 37;
   }
 }
 
