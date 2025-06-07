@@ -16,6 +16,7 @@
 #define KOJI_QUIT_TIMES 1
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define APPEND_BUFFER_INIT { NULL, 0 }
+#define HIGHLIGHT_NUMBERS_FLAG (1<<0)
 
 enum MOVEMENT_KEYS {
   BACKSPACE = 127,
@@ -50,6 +51,12 @@ typedef struct {
 } editor_row;
 
 typedef struct {
+  char *file_type;
+  char **file_match;
+  int flags;
+} editor_syntax;
+
+typedef struct {
   int cursor_x;
   int cursor_y;
   int render_x;
@@ -63,15 +70,29 @@ typedef struct {
   char *file_name;
   char status_message[80];
   time_t status_message_time;
+  editor_syntax *syntax;
   struct termios orig_termios;
 } editor_cofig;
 
 editor_cofig edconfig;
 
+char *C_HIGHLIGHT_EXTENSIONS[] = { ".c", ".h", ".cpp", ".txt", NULL };
+
+editor_syntax HLDB[] = {
+  {
+    "c",
+    C_HIGHLIGHT_EXTENSIONS,
+    HIGHLIGHT_NUMBERS_FLAG
+  }
+};
+
+#define HLDB_ENTRIES (sizeof(HLDB), sizeof(HLDB[0]))
+
 /*** Prototypes ***/
 char *editor_prompt(char *prompt, void(*callback)(char *, int));
 int editor_syntax_to_color(int highlight);
 void editor_update_syntax(editor_row *row);
+void editor_select_syntax_highlight(void);
 /******/
 
 void ab_append(append_buffer *ab, const char *s, int len) {
@@ -215,7 +236,8 @@ void editor_draw_status_bar(append_buffer *ab) {
   int status_bar_right_len = snprintf(
     status_bar_right_text,
     sizeof(status_bar_right_text),
-    "line %d/%d",
+    "filetype - %s | line %d/%d",
+    edconfig.syntax ? edconfig.syntax->file_type : "no filetype",
     edconfig.cursor_y + 1,
     edconfig.number_of_rows
   );
@@ -502,6 +524,8 @@ void editor_open(char *file_name) {
   free(edconfig.file_name);
   edconfig.file_name = strdup(file_name);
 
+  editor_select_syntax_highlight();
+
   FILE *file_processor = fopen(file_name, "r");
 
   if (!file_processor) {
@@ -546,6 +570,8 @@ void editor_save(void) {
       editor_set_status_message("Save aborted.");
       return;
     }
+
+    editor_select_syntax_highlight();
   }
 
   int len;
@@ -816,6 +842,10 @@ void editor_update_syntax(editor_row *row) {
   row->highlight = realloc(row->highlight, row->render_size);
   memset(row->highlight, HIGHLIGHT_NORMAL, row->render_size);
 
+  if (edconfig.syntax == NULL) {
+    return;
+  }
+
   int prev_separator = 1;
 
   int i = 0;
@@ -824,14 +854,16 @@ void editor_update_syntax(editor_row *row) {
     unsigned char prev_highlight = (i > 0) ?
       row->highlight[i - 1] : HIGHLIGHT_NORMAL;
 
-    if (
-      (isdigit(c) && (prev_separator || prev_highlight == HIGHLIGHT_NUMBER)) ||
-        (c == '.' && prev_highlight == HIGHLIGHT_NUMBER)
-    ) {
-      row->highlight[i] = HIGHLIGHT_NUMBER;
-      i++;
-      prev_separator = 0;
-      continue;
+    if (edconfig.syntax->flags & HIGHLIGHT_NUMBERS_FLAG) {
+      if (
+        (isdigit(c) && (prev_separator || prev_highlight == HIGHLIGHT_NUMBER)) ||
+          (c == '.' && prev_highlight == HIGHLIGHT_NUMBER)
+      ) {
+        row->highlight[i] = HIGHLIGHT_NUMBER;
+        i++;
+        prev_separator = 0;
+        continue;
+      }
     }
 
     prev_separator = is_separator(c);
@@ -847,6 +879,40 @@ int editor_syntax_to_color(int highlight) {
       return 34;
     default:
       return 37;
+  }
+}
+
+void editor_select_syntax_highlight(void) {
+  edconfig.syntax = NULL;
+  if (edconfig.file_name == NULL) {
+    return;
+  }
+
+  char *file_ext = strchr(edconfig.file_name, '.');
+
+  for (unsigned int j = 0; j < HLDB_ENTRIES; j++) {
+    editor_syntax *syntax = &HLDB[j];
+    unsigned int i = 0;
+
+    while (syntax->file_match[i]) {
+      int is_ext = syntax->file_match[i][0] == '.';
+
+      if (
+        (is_ext && file_ext && !strcmp(file_ext, syntax->file_match[i])) ||
+          (!is_ext && strstr(edconfig.file_name, syntax->file_match[i]))
+      ) {
+        edconfig.syntax = syntax;
+
+        int file_row;
+        for (file_row = 0; file_row < edconfig.number_of_rows; file_row++) {
+          editor_update_syntax(&edconfig.current_rows[file_row]);
+        }
+
+        return;
+      }
+
+      i++;
+    }
   }
 }
 
@@ -1139,6 +1205,7 @@ void init_editor(void) {
   edconfig.file_name = NULL;
   edconfig.status_message[0] = '\0';
   edconfig.status_message_time = 0;
+  edconfig.syntax = NULL;
 
   if (get_window_size(&edconfig.screen_rows, &edconfig.screen_columns) == -1) {
     die("get_window_size");
