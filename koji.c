@@ -807,15 +807,35 @@ int get_window_size(int *rows, int *cols) {
   }
 }
 
+int is_separator(int c) {
+  return isspace(c) || c == '\0' ||
+    strchr(",.()+-/*=~%<>[];", c) != NULL;
+}
+
 void editor_update_syntax(editor_row *row) {
   row->highlight = realloc(row->highlight, row->render_size);
   memset(row->highlight, HIGHLIGHT_NORMAL, row->render_size);
 
-  int i;
-  for (i = 0; i < row->render_size; i++) {
-    if (isdigit(row->render[i])) {
+  int prev_separator = 1;
+
+  int i = 0;
+  while (i < row->size) {
+    char c = row->render[i];
+    unsigned char prev_highlight = (i > 0) ?
+      row->highlight[i - 1] : HIGHLIGHT_NORMAL;
+
+    if (
+      (isdigit(c) && (prev_separator || prev_highlight == HIGHLIGHT_NUMBER)) ||
+        (c == '.' && prev_highlight == HIGHLIGHT_NUMBER)
+    ) {
       row->highlight[i] = HIGHLIGHT_NUMBER;
+      i++;
+      prev_separator = 0;
+      continue;
     }
+
+    prev_separator = is_separator(c);
+    i++;
   }
 }
 
