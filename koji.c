@@ -142,11 +142,18 @@ void editor_draw_rows(append_buffer *ab) {
         last_row_length = edconfig.screen_columns;
       }
 
-      ab_append(
-        ab,
-        &edconfig.current_rows[file_row].render[edconfig.column_offset],
-        last_row_length
-      );
+      char *c = &edconfig.current_rows[file_row].render[edconfig.column_offset];
+
+      int j;
+      for (j = 0; j < last_row_length; j++) {
+        if (isdigit(c[j])) {
+          ab_append(ab, "\x1b[31m", 5);
+          ab_append(ab, &c[j], 1);
+          ab_append(ab, "\x1b[39m", 5);
+        } else {
+          ab_append(ab, &c[j], 1);
+        }
+      }
     }
 
     // append newlines and clear other terminal contents
