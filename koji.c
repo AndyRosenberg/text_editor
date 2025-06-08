@@ -34,6 +34,7 @@ enum MOVEMENT_KEYS {
 
 enum EDITOR_HIGHLIGHT {
   HIGHLIGHT_NORMAL = 0,
+  HIGHLIGHT_COMMENT,
   HIGHLIGHT_STRING,
   HIGHLIGHT_NUMBER,
   HIGHLIGHT_MATCH
@@ -55,6 +56,7 @@ typedef struct {
 typedef struct {
   char *file_type;
   char **file_match;
+  char *single_line_comment_start;
   int flags;
 } editor_syntax;
 
@@ -78,13 +80,14 @@ typedef struct {
 
 editor_cofig edconfig;
 
-char *C_HIGHLIGHT_EXTENSIONS[] = { ".c", ".h", ".cpp", ".txt", NULL };
+char *C_HIGHLIGHT_EXTENSIONS[] = { ".c", ".h", ".cpp", NULL };
 
 editor_syntax HLDB[] = {
   {
-    "c",
-    C_HIGHLIGHT_EXTENSIONS,
-    HIGHLIGHT_NUMBERS_FLAG | HIGHLIGHT_STRINGS_FLAG
+    .file_type="c",
+    .file_match=C_HIGHLIGHT_EXTENSIONS,
+    .single_line_comment_start="//",
+    .flags=HIGHLIGHT_NUMBERS_FLAG | HIGHLIGHT_STRINGS_FLAG
   }
 };
 
@@ -848,6 +851,9 @@ void editor_update_syntax(editor_row *row) {
     return;
   }
 
+  char *sl_comment_start = edconfig.syntax->single_line_comment_start;
+  int sl_comment_start_length = sl_comment_start ? strlen(sl_comment_start) : 0;
+
   int prev_separator = 1;
   int in_string = 0;
 
@@ -856,6 +862,13 @@ void editor_update_syntax(editor_row *row) {
     char c = row->render[i];
     unsigned char prev_highlight = (i > 0) ?
       row->highlight[i - 1] : HIGHLIGHT_NORMAL;
+
+    if (sl_comment_start_length && !in_string) {
+      if (!strncmp(&row->render[i], sl_comment_start, sl_comment_start_length)) {
+        memset(&row->highlight[i], HIGHLIGHT_COMMENT, row->render_size - i);
+        break;
+      }
+    }
 
     if (edconfig.syntax->flags & HIGHLIGHT_STRINGS_FLAG) {
       if (in_string) {
@@ -903,6 +916,8 @@ void editor_update_syntax(editor_row *row) {
 
 int editor_syntax_to_color(int highlight) {
   switch (highlight) {
+    case HIGHLIGHT_COMMENT:
+      return 36;
     case HIGHLIGHT_STRING:
       return 35;
     case HIGHLIGHT_NUMBER:
