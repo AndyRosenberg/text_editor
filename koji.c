@@ -556,7 +556,7 @@ void editor_open(char *file_name) {
       line_length--;
     }
 
-    editor_insert_row(edconfig.cursor_y, line, line_length);
+    editor_insert_row(edconfig.number_of_rows, line, line_length);
   }
 
   free(line);
