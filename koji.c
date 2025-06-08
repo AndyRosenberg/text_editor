@@ -84,6 +84,8 @@ typedef struct {
 editor_cofig edconfig;
 
 char *C_HIGHLIGHT_EXTENSIONS[] = { ".c", ".h", ".cpp", NULL };
+
+// TODO: turn this into two arrays
 char *C_HIGHLIGHT_KEYWORDS_AND_TYPES[] = {
   "switch", "if", "while", "for", "break", "continue", "return", "else",
   "struct", "union", "typedef", "static", "enum", "class", "case",
@@ -199,7 +201,23 @@ void editor_draw_rows(append_buffer *ab) {
       int j;
 
       for (j = 0; j < last_row_length; j++) {
-        if (hl[j] == HIGHLIGHT_NORMAL) {
+        if (iscntrl(c[j])) {
+          char symbol = (c[j] <= 26) ? '@' + c[j] : '?';
+          ab_append(ab, "\x1b[7m", 4);
+          ab_append(ab, &symbol, 1);
+          ab_append(ab, "\x1b[m", 3);
+
+          if (current_color != -1) {
+            char buffer[16];
+            int color_length = snprintf(
+              buffer,
+              sizeof(buffer),
+              "\x1b[%dm",
+              current_color
+            );
+            ab_append(ab, buffer, color_length);
+          }
+        } else if (hl[j] == HIGHLIGHT_NORMAL) {
           if (current_color != -1) {
             ab_append(ab, "\x1b[39m", 5);
             current_color = -1;
