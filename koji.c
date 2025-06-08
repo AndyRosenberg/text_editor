@@ -101,7 +101,7 @@ editor_syntax HLDB[] = {
   }
 };
 
-#define HLDB_ENTRIES (sizeof(HLDB), sizeof(HLDB[0]))
+#define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
 
 /*** Prototypes ***/
 char *editor_prompt(char *prompt, void(*callback)(char *, int));
@@ -221,10 +221,9 @@ void editor_draw_rows(append_buffer *ab) {
 
           ab_append(ab, &c[j], 1);
         }
-
-        // switch back to normal color
-        ab_append(ab, "\x1b[39m", 5);
       }
+      // set back to normal color
+      ab_append(ab, "\x1b[39m", 5);
     }
 
     // append newlines and clear other terminal contents
