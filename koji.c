@@ -35,6 +35,7 @@ enum MOVEMENT_KEYS {
 enum EDITOR_HIGHLIGHT {
   HIGHLIGHT_NORMAL = 0,
   HIGHLIGHT_COMMENT,
+  HIGHLIGHT_MULTILINE_COMMENT,
   HIGHLIGHT_KEYWORD,
   HIGHLIGHT_TYPE,
   HIGHLIGHT_STRING,
@@ -48,11 +49,13 @@ typedef struct {
 } append_buffer;
 
 typedef struct {
+  int current_rows_idx;
   int size;
   int render_size;
   char *chars;
   char *render;
   unsigned char *highlight;
+  int in_open_comment;
 } editor_row;
 
 typedef struct {
@@ -60,6 +63,8 @@ typedef struct {
   char **file_match;
   char **keywords_and_types;
   char *single_line_comment_start;
+  char *multiline_comment_start;
+  char *multiline_comment_end;
   int flags;
 } editor_syntax;
 
@@ -99,6 +104,8 @@ editor_syntax HLDB[] = {
     .file_match=C_HIGHLIGHT_EXTENSIONS,
     .keywords_and_types=C_HIGHLIGHT_KEYWORDS_AND_TYPES,
     .single_line_comment_start="//",
+    .multiline_comment_start="/*",
+    .multiline_comment_end="*/",
     .flags=HIGHLIGHT_NUMBERS_FLAG | HIGHLIGHT_STRINGS_FLAG
   }
 };
@@ -393,6 +400,12 @@ void editor_insert_row(int idx, char *s, size_t len) {
     sizeof(editor_row) * (edconfig.number_of_rows - idx)
   );
 
+  for (int j = idx + 1; j <= edconfig.number_of_rows; j++) {
+    edconfig.current_rows[j].current_rows_idx++;
+  }
+
+  edconfig.current_rows[idx].current_rows_idx = idx;
+
   edconfig.current_rows[idx].size = len;
   edconfig.current_rows[idx].chars = malloc(len + 1);
 
@@ -403,6 +416,7 @@ void editor_insert_row(int idx, char *s, size_t len) {
   edconfig.current_rows[idx].render_size = 0;
   edconfig.current_rows[idx].render = NULL;
   edconfig.current_rows[idx].highlight = NULL;
+  edconfig.current_rows[idx].in_open_comment = 0;
   editor_update_row(&edconfig.current_rows[idx]);
 
   edconfig.number_of_rows++;
@@ -426,6 +440,11 @@ void editor_delete_row(int idx) {
     &edconfig.current_rows[idx + 1],
     sizeof(editor_row) * (edconfig.number_of_rows - idx - 1)
   );
+
+  for (int j = idx; j < edconfig.number_of_rows - 1; j++) {
+    edconfig.current_rows[j].current_rows_idx--;
+  }
+
   edconfig.number_of_rows--;
   edconfig.is_dirty++;
 }
@@ -881,10 +900,19 @@ void editor_update_syntax(editor_row *row) {
   char **keywords_and_types = edconfig.syntax->keywords_and_types;
 
   char *sl_comment_start = edconfig.syntax->single_line_comment_start;
+  char *ml_comment_start = edconfig.syntax->multiline_comment_start;
+  char *ml_comment_end = edconfig.syntax->multiline_comment_end;
+
   int sl_comment_start_length = sl_comment_start ? strlen(sl_comment_start) : 0;
+  int ml_comment_start_length = ml_comment_start ? strlen(ml_comment_start) : 0;
+  int ml_comment_end_length = ml_comment_end ? strlen(ml_comment_end) : 0;
 
   int prev_separator = 1;
   int in_string = 0;
+  int in_ml_comment = (
+    row->current_rows_idx > 0 &&
+      edconfig.current_rows[row->current_rows_idx - 1].in_open_comment
+  );
 
   int i = 0;
   while (i < row->size) {
@@ -892,10 +920,32 @@ void editor_update_syntax(editor_row *row) {
     unsigned char prev_highlight = (i > 0) ?
       row->highlight[i - 1] : HIGHLIGHT_NORMAL;
 
-    if (sl_comment_start_length && !in_string) {
+    if (sl_comment_start_length && !in_string && !in_ml_comment) {
       if (!strncmp(&row->render[i], sl_comment_start, sl_comment_start_length)) {
         memset(&row->highlight[i], HIGHLIGHT_COMMENT, row->render_size - i);
         break;
+      }
+    }
+
+    if (ml_comment_start_length && ml_comment_end_length && !in_string) {
+      if (in_ml_comment) {
+        row->highlight[i] = HIGHLIGHT_MULTILINE_COMMENT;
+
+        if (!strncmp(&row->render[i], ml_comment_end, ml_comment_end_length)) {
+          memset(&row->highlight[i], HIGHLIGHT_MULTILINE_COMMENT, ml_comment_end_length);
+          i += ml_comment_end_length;
+          in_ml_comment = 0;
+          prev_separator = 1;
+          continue;
+        } else {
+          i++;
+          continue;
+        }
+      } else if (!strncmp(&row->render[i], ml_comment_start, ml_comment_start_length)) {
+        memset(&row->highlight[i], HIGHLIGHT_MULTILINE_COMMENT, ml_comment_start_length);
+        i += ml_comment_start_length;
+        in_ml_comment = 1;
+        continue;
       }
     }
 
@@ -970,11 +1020,24 @@ void editor_update_syntax(editor_row *row) {
     prev_separator = is_separator(c);
     i++;
   }
+
+  int changed_ml_comment_status = (
+    row->in_open_comment != in_ml_comment
+  );
+
+  row->in_open_comment = in_ml_comment;
+
+  if (changed_ml_comment_status && row->current_rows_idx + 1 < edconfig.number_of_rows) {
+    editor_update_syntax(&edconfig.current_rows[
+      row->current_rows_idx + 1
+    ]);
+  }
 }
 
 int editor_syntax_to_color(int highlight) {
   switch (highlight) {
     case HIGHLIGHT_COMMENT:
+    case HIGHLIGHT_MULTILINE_COMMENT:
       return 36;
     case HIGHLIGHT_KEYWORD:
       return 33;
