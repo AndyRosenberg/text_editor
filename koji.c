@@ -35,6 +35,8 @@ enum MOVEMENT_KEYS {
 enum EDITOR_HIGHLIGHT {
   HIGHLIGHT_NORMAL = 0,
   HIGHLIGHT_COMMENT,
+  HIGHLIGHT_KEYWORD,
+  HIGHLIGHT_TYPE,
   HIGHLIGHT_STRING,
   HIGHLIGHT_NUMBER,
   HIGHLIGHT_MATCH
@@ -56,6 +58,7 @@ typedef struct {
 typedef struct {
   char *file_type;
   char **file_match;
+  char **keywords_and_types;
   char *single_line_comment_start;
   int flags;
 } editor_syntax;
@@ -81,11 +84,18 @@ typedef struct {
 editor_cofig edconfig;
 
 char *C_HIGHLIGHT_EXTENSIONS[] = { ".c", ".h", ".cpp", NULL };
+char *C_HIGHLIGHT_KEYWORDS_AND_TYPES[] = {
+  "switch", "if", "while", "for", "break", "continue", "return", "else",
+  "struct", "union", "typedef", "static", "enum", "class", "case",
+  "int|", "long|", "double|", "float|", "char|", "unsigned|", "signed|",
+  "void|", NULL
+};
 
 editor_syntax HLDB[] = {
   {
     .file_type="c",
     .file_match=C_HIGHLIGHT_EXTENSIONS,
+    .keywords_and_types=C_HIGHLIGHT_KEYWORDS_AND_TYPES,
     .single_line_comment_start="//",
     .flags=HIGHLIGHT_NUMBERS_FLAG | HIGHLIGHT_STRINGS_FLAG
   }
@@ -851,6 +861,8 @@ void editor_update_syntax(editor_row *row) {
     return;
   }
 
+  char **keywords_and_types = edconfig.syntax->keywords_and_types;
+
   char *sl_comment_start = edconfig.syntax->single_line_comment_start;
   int sl_comment_start_length = sl_comment_start ? strlen(sl_comment_start) : 0;
 
@@ -909,6 +921,35 @@ void editor_update_syntax(editor_row *row) {
       }
     }
 
+    if (prev_separator) {
+      int j;
+      for (j = 0; keywords_and_types[j]; j++) {
+        int keyword_type_len = strlen(keywords_and_types[j]);
+        int is_type = keywords_and_types[j][keyword_type_len - 1] == '|';
+        if (is_type) {
+          keyword_type_len--;
+        }
+
+        if (!strncmp(
+          &row->render[i],
+          keywords_and_types[j],
+          keyword_type_len
+        ) &&
+          is_separator(row->render[i + keyword_type_len])) {
+            memset(
+              &row->highlight[i],
+              is_type ? HIGHLIGHT_TYPE : HIGHLIGHT_KEYWORD,
+              keyword_type_len
+            );
+        }
+      }
+
+      if (keywords_and_types[j] != NULL) {
+        prev_separator = 0;
+        continue;
+      }
+    }
+
     prev_separator = is_separator(c);
     i++;
   }
@@ -918,6 +959,10 @@ int editor_syntax_to_color(int highlight) {
   switch (highlight) {
     case HIGHLIGHT_COMMENT:
       return 36;
+    case HIGHLIGHT_KEYWORD:
+      return 33;
+    case HIGHLIGHT_TYPE:
+      return 32;
     case HIGHLIGHT_STRING:
       return 35;
     case HIGHLIGHT_NUMBER:
