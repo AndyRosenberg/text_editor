@@ -200,7 +200,7 @@ void editor_draw_rows(append_buffer *ab) {
         file_row
       ].render[edconfig.column_offset];
 
-      unsigned char *hl = &edconfig.current_rows[
+      unsigned char *highlight = &edconfig.current_rows[
         file_row
       ].highlight[edconfig.column_offset];
 
@@ -224,7 +224,7 @@ void editor_draw_rows(append_buffer *ab) {
             );
             ab_append(ab, buffer, color_length);
           }
-        } else if (hl[j] == HIGHLIGHT_NORMAL) {
+        } else if (highlight[j] == HIGHLIGHT_NORMAL) {
           if (current_color != -1) {
             ab_append(ab, "\x1b[39m", 5);
             current_color = -1;
@@ -232,7 +232,7 @@ void editor_draw_rows(append_buffer *ab) {
 
           ab_append(ab, &c[j], 1);
         } else {
-          int color = editor_syntax_to_color(hl[j]);
+          int color = editor_syntax_to_color(highlight[j]);
           if (color != current_color) {
             current_color = color;
             char buffer[16];
