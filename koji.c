@@ -234,6 +234,7 @@ void editor_draw_rows(append_buffer *ab) {
         } else {
           int color = editor_syntax_to_color(hl[j]);
           if (color != current_color) {
+            current_color = color;
             char buffer[16];
             int color_length = snprintf(
               buffer,
@@ -915,7 +916,7 @@ void editor_update_syntax(editor_row *row) {
   );
 
   int i = 0;
-  while (i < row->size) {
+  while (i < row->render_size) {
     char c = row->render[i];
     unsigned char prev_highlight = (i > 0) ?
       row->highlight[i - 1] : HIGHLIGHT_NORMAL;
