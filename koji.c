@@ -61,7 +61,8 @@ typedef struct {
 typedef struct {
   char *file_type;
   char **file_match;
-  char **keywords_and_types;
+  char **keywords;
+  char **types;
   char *single_line_comment_start;
   char *multiline_comment_start;
   char *multiline_comment_end;
@@ -90,19 +91,23 @@ editor_cofig edconfig;
 
 char *C_HIGHLIGHT_EXTENSIONS[] = { ".c", ".h", ".cpp", NULL };
 
-// TODO: turn this into two arrays
-char *C_HIGHLIGHT_KEYWORDS_AND_TYPES[] = {
+char *C_HIGHLIGHT_KEYWORDS[] = {
   "switch", "if", "while", "for", "break", "continue", "return", "else",
   "struct", "union", "typedef", "static", "enum", "class", "case",
-  "int|", "long|", "double|", "float|", "char|", "unsigned|", "signed|",
-  "void|", NULL
+  "#define", "#include", NULL
+};
+
+char *C_HIGHLIGHT_TYPES[] = {
+  "int", "long", "double", "float", "char", "unsigned",
+  "signed", "void", "size_t", "time_t", NULL
 };
 
 editor_syntax HLDB[] = {
   {
     .file_type="c",
     .file_match=C_HIGHLIGHT_EXTENSIONS,
-    .keywords_and_types=C_HIGHLIGHT_KEYWORDS_AND_TYPES,
+    .keywords=C_HIGHLIGHT_KEYWORDS,
+    .types=C_HIGHLIGHT_TYPES,
     .single_line_comment_start="//",
     .multiline_comment_start="/*",
     .multiline_comment_end="*/",
@@ -898,7 +903,8 @@ void editor_update_syntax(editor_row *row) {
     return;
   }
 
-  char **keywords_and_types = edconfig.syntax->keywords_and_types;
+  char **keywords = edconfig.syntax->keywords;
+  char **types = edconfig.syntax->types;
 
   char *sl_comment_start = edconfig.syntax->single_line_comment_start;
   char *ml_comment_start = edconfig.syntax->multiline_comment_start;
@@ -991,28 +997,43 @@ void editor_update_syntax(editor_row *row) {
 
     if (prev_separator) {
       int j;
-      for (j = 0; keywords_and_types[j]; j++) {
-        int keyword_type_len = strlen(keywords_and_types[j]);
-        int is_type = keywords_and_types[j][keyword_type_len - 1] == '|';
-        if (is_type) {
-          keyword_type_len--;
-        }
+      int k;
+
+      for (j = 0; keywords[j]; j++) {
+        int keyword_len = strlen(keywords[j]);
 
         if (!strncmp(
           &row->render[i],
-          keywords_and_types[j],
-          keyword_type_len
+          keywords[j],
+          keyword_len
         ) &&
-          is_separator(row->render[i + keyword_type_len])) {
+          is_separator(row->render[i + keyword_len])) {
             memset(
               &row->highlight[i],
-              is_type ? HIGHLIGHT_TYPE : HIGHLIGHT_KEYWORD,
-              keyword_type_len
+              HIGHLIGHT_KEYWORD,
+              keyword_len
             );
         }
       }
 
-      if (keywords_and_types[j] != NULL) {
+      for (k = 0; types[k]; k++) {
+        int type_len = strlen(types[k]);
+
+        if (!strncmp(
+          &row->render[i],
+          types[k],
+          type_len
+        ) &&
+          is_separator(row->render[i + type_len])) {
+            memset(
+              &row->highlight[i],
+              HIGHLIGHT_TYPE,
+              type_len
+            );
+        }
+      }
+
+      if (keywords[j] != NULL && types[k] != NULL) {
         prev_separator = 0;
         continue;
       }
