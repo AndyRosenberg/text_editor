@@ -62,6 +62,7 @@ typedef struct {
   char *file_type;
   char **file_match;
   char **keywords;
+  int is_typed;
   char **types;
   char *single_line_comment_start;
   char *multiline_comment_start;
@@ -102,15 +103,39 @@ char *C_HIGHLIGHT_TYPES[] = {
   "signed", "void", "size_t", "time_t", NULL
 };
 
+char *RUBY_HIGHLIGHT_EXTENSIONS[] = {
+  ".rb", ".erb", ".rake", ".gemspec", ".ru", NULL
+};
+
+char *RUBY_KEYWORDS[] = {
+  "__ENCODING__", "__LINE__", "__FILE__",
+  "BEGIN", "END", "alias", "and", "begin", "break", "case", "class", "def",
+  "defined?", "do", "else", "elsif", "end", "ensure", "false", "for", "if",
+  "in", "module", "next", "nil", "not", "or", "redo", "rescue", "retry",
+  "return", "self", "super", "then", "true", "undef", "unless", "until",
+  "when", "while", "yield", NULL
+};
+
 editor_syntax HLDB[] = {
   {
     .file_type="c",
     .file_match=C_HIGHLIGHT_EXTENSIONS,
     .keywords=C_HIGHLIGHT_KEYWORDS,
+    .is_typed=1,
     .types=C_HIGHLIGHT_TYPES,
     .single_line_comment_start="//",
     .multiline_comment_start="/*",
     .multiline_comment_end="*/",
+    .flags=HIGHLIGHT_NUMBERS_FLAG | HIGHLIGHT_STRINGS_FLAG
+  },
+  {
+    .file_type="ruby",
+    .file_match=RUBY_HIGHLIGHT_EXTENSIONS,
+    .keywords=RUBY_KEYWORDS,
+    .is_typed=0,
+    .single_line_comment_start="#",
+    .multiline_comment_start="=begin",
+    .multiline_comment_end="=end",
     .flags=HIGHLIGHT_NUMBERS_FLAG | HIGHLIGHT_STRINGS_FLAG
   }
 };
@@ -905,6 +930,7 @@ void editor_update_syntax(editor_row *row) {
 
   char **keywords = edconfig.syntax->keywords;
   char **types = edconfig.syntax->types;
+  int is_typed = edconfig.syntax->is_typed;
 
   char *sl_comment_start = edconfig.syntax->single_line_comment_start;
   char *ml_comment_start = edconfig.syntax->multiline_comment_start;
@@ -1016,24 +1042,26 @@ void editor_update_syntax(editor_row *row) {
         }
       }
 
-      for (k = 0; types[k]; k++) {
-        int type_len = strlen(types[k]);
+      if (is_typed) {
+        for (k = 0; types[k]; k++) {
+          int type_len = strlen(types[k]);
 
-        if (!strncmp(
-          &row->render[i],
-          types[k],
-          type_len
-        ) &&
-          is_separator(row->render[i + type_len])) {
-            memset(
-              &row->highlight[i],
-              HIGHLIGHT_TYPE,
-              type_len
-            );
+          if (!strncmp(
+            &row->render[i],
+            types[k],
+            type_len
+          ) &&
+            is_separator(row->render[i + type_len])) {
+              memset(
+                &row->highlight[i],
+                HIGHLIGHT_TYPE,
+                type_len
+              );
+          }
         }
       }
 
-      if (keywords[j] != NULL && types[k] != NULL) {
+      if (keywords[j] != NULL && (!is_typed || types[k] != NULL)) {
         prev_separator = 0;
         continue;
       }
