@@ -10,7 +10,7 @@ BUILD_DIR := build
 SRC_FILES := $(wildcard $(SRC_DIR)/*.c)
 MAIN_FILE := koji.c
 
-# Object files (build/*.o and main.o)
+# Object files
 OBJ_FILES := $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(SRC_FILES)) \
              $(BUILD_DIR)/koji.o
 
@@ -20,18 +20,20 @@ TARGET := koji
 # Default target
 all: $(TARGET)
 
+# Create build directory
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+
 # Link object files into final binary
 $(TARGET): $(OBJ_FILES)
 	$(CC) $(OBJ_FILES) -o $@
 
 # Compile source files in src/
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
-	@mkdir -p $(@D)
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Compile main.c separately
-$(BUILD_DIR)/koji.o: koji.c
-	@mkdir -p $(@D)
+# Compile main koji.c file
+$(BUILD_DIR)/koji.o: koji.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Clean up
