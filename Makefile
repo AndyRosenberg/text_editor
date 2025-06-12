@@ -2,32 +2,38 @@
 CC := gcc
 CFLAGS := -Wall -Wextra -pedantic -std=c99
 
+# Directories
+SRC_DIR := src
+BUILD_DIR := build
+
 # Source files
-SRC_DIR = src
 SRC_FILES := $(wildcard $(SRC_DIR)/*.c)
+MAIN_FILE := koji.c
 
-# Ensure src/hldb.c is first
-SRC_FILES := $(filter $(SRC_DIR)/hldb.c,$(SRC_FILES)) $(filter-out $(SRC_DIR)/hldb.c,$(SRC_FILES))
+# Object files (build/*.o and main.o)
+OBJ_FILES := $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(SRC_FILES)) \
+             $(BUILD_DIR)/koji.o
 
-# Add main file
-MAIN = koji.c
+# Output binary
+TARGET := koji
 
-# Object files
-OBJ_FILES := $(SRC_FILES:.c=.o) $(MAIN:.c=.o)
-
-# Final executable
-TARGET = koji
-
-.PHONY: all clean
-
+# Default target
 all: $(TARGET)
 
+# Link object files into final binary
 $(TARGET): $(OBJ_FILES)
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CC) $(OBJ_FILES) -o $@
 
-# Compile main.c and src/*.c files into .o files
-%.o: %.c
+# Compile source files in src/
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# Compile main.c separately
+$(BUILD_DIR)/koji.o: koji.c
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Clean up
 clean:
-	rm -f $(OBJ_FILES) $(TARGET)
+	rm -rf $(BUILD_DIR) $(TARGET)

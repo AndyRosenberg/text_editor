@@ -3,6 +3,8 @@
 #include "../include/utils.h"
 #include "../include/render.h"
 
+editor_config edconfig;
+
 void init_editor(void) {
   edconfig.cursor_x = 0;
   edconfig.cursor_y = 0;

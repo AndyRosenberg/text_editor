@@ -51,4 +51,4 @@ editor_syntax HLDB[] = {
   }
 };
 
-#define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
+const size_t HLDB_ENTRIES = (sizeof(HLDB) / sizeof(HLDB[0]));
